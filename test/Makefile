@@ -107,11 +107,19 @@ ATLAS_LIB      := $(BLAS_LIB_PATH)/libf77blas.a \
                   $(BLAS_LIB_PATH)/libatlas.a
 
 # MKL
+#MKL_LIB        := -L$(MKL_LIB_PATH) \
+#                  -lmkl_intel_lp64 \
+#                  -lmkl_core \
+#                  -lmkl_sequential \
+#                  -lpthread -lm -ldl
+
 MKL_LIB        := -L$(MKL_LIB_PATH) \
                   -lmkl_intel_lp64 \
                   -lmkl_core \
-                  -lmkl_sequential \
+                  -lmkl_intel_thread \
+                  -liomp5 \
                   -lpthread -lm -ldl
+
 
 # ESSL
 # Note: ESSL is named differently for SMP and/or BG
@@ -346,4 +354,3 @@ clean: cleanx
 
 cleanx:
 	- $(RM_F) *.o *.x
-	
