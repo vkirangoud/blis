@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2018 - 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2024, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -171,8 +171,33 @@ void bli_gemm_ker_var2
 	// function pointer.
 	f = ftypes[dt_exec];
 
-	// Invoke the function.
-	f( schema_a,
+#ifdef BLIS_KERNELS_ZEN4
+
+	// Optimized macro kernel is avaible for DGEMM
+	// for AVX512. Only row major stored C is supported.
+	// TODO: Add macro kernel function pointer in cntx
+	if
+	(
+		 ( bli_obj_dt( c ) == BLIS_DOUBLE ) &&
+		 ( ( bli_arch_query_id() == BLIS_ARCH_ZEN5 ) ||
+		   ( bli_arch_query_id() == BLIS_ARCH_ZEN4 ) ) &&
+		 ( cs_c == 1 ) && // use this kernel only for row major C
+		 // use generic macro kernel for mixed precision
+		 ( bli_obj_elem_size( a ) == 8 ) && // check if elem_sizeof(a) == sizeof(double)
+		 ( bli_obj_is_real( a ) )        && // check if A is real
+		 ( bli_obj_elem_size( b ) == 8 ) && // check if elem_sizeof(b) == sizeof(double)
+		 ( bli_obj_is_real( b ) )           // check if B is real
+	)
+	{
+		bli_dgemm_avx512_asm_8x24_macro_kernel
+		(
+			n, m, k, buf_c, buf_a, buf_b, rs_c, buf_beta
+		);
+	}
+	else
+#endif
+	{
+	  f( schema_a,
 	   schema_b,
 	   m,
 	   n,
@@ -187,6 +212,7 @@ void bli_gemm_ker_var2
 	   cntx,
 	   rntm,
 	   thread );
+	}
 	
 	AOCL_DTL_TRACE_EXIT(AOCL_DTL_LEVEL_TRACE_6);
 }
@@ -224,7 +250,17 @@ void PASTEMAC(ch,varname) \
 	/*const dim_t     PACKNR     = rs_b;*/ \
 \
 	/* Query the context for the micro-kernel address and cast it to its
-	   function pointer type. */ \
+	   function pointer type. Note that the virtual gemm ukernel is queried
+	   instead of the native gemm ukernel. This is needed for certain
+	   situations for the 1m method that require an extra layer of logic
+	   to allow for handling (for example) complex values of beta. Also
+	   note that under certain circumstances, the real-domain version of
+	   this macrokernel will be called for 1m (NOT the complex version)
+	   as an optimization. In these cases, the corresponding real-domain
+	   slots within the cntx_t's virtual gemm ukernel func_t will contain
+	   pointers to the *native* gemm ukernel, thanks to logic in the
+	   context initialization function for the induced method (defined
+	   in bli_cntx_ref.c). */ \
 	PASTECH(ch,gemm_ukr_ft) \
 	                gemm_ukr   = bli_cntx_get_l3_vir_ukr_dt( dt, BLIS_GEMM_UKR, cntx ); \
 \
@@ -235,7 +271,7 @@ void PASTEMAC(ch,varname) \
 	ctype           ct[ BLIS_STACK_BUF_MAX_SIZE \
 	                    / sizeof( ctype ) ] \
 	                    __attribute__((aligned(BLIS_STACK_BUF_ALIGN_SIZE))); \
-	const bool_t    col_pref    = bli_cntx_l3_vir_ukr_prefers_cols_dt( dt, BLIS_GEMM_UKR, cntx ); \
+	const bool      col_pref    = bli_cntx_l3_vir_ukr_prefers_cols_dt( dt, BLIS_GEMM_UKR, cntx ); \
 	const inc_t     rs_ct       = ( col_pref ? 1 : NR ); \
 	const inc_t     cs_ct       = ( col_pref ? MR : 1 ); \
 \
@@ -407,6 +443,22 @@ void PASTEMAC(ch,varname) \
 		} \
 	} \
 \
+/* Send progress update if the user has enabled it */ \
+AOCL_progress_callback AOCL_progress_local_ptr = AOCL_progress_ptr; \
+if (AOCL_progress_local_ptr) { \
+	/* Running total for current thread */ \
+	tls_aoclprogress_counter += m * n * k; \
+	/* Send the update only if enough number of elements are processes */ \
+	if ((tls_aoclprogress_counter - tls_aoclprogress_last_update)  >= AOCL_PROGRESS_FREQUENCY) \
+	{ \
+		tls_aoclprogress_last_update = tls_aoclprogress_counter; \
+		(*AOCL_progress_local_ptr)(MKSTR(ch) "gemm", sizeof(MKSTR(ch) "gemm"), \
+								   tls_aoclprogress_counter, \
+								   AOCL_gettid(), \
+								   bli_rntm_num_threads(rntm)); \
+	}\
+} \
+ \
 /*
 PASTEMAC(ch,fprintm)( stdout, "gemm_ker_var2: b1", k, NR, b1, NR, 1, "%4.1f", "" ); \
 PASTEMAC(ch,fprintm)( stdout, "gemm_ker_var2: a1", MR, k, a1, 1, MR, "%4.1f", "" ); \

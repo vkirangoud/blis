@@ -232,7 +232,7 @@ void PASTEMAC2(chc,che,varname) \
 	ctype_e         ct[ BLIS_STACK_BUF_MAX_SIZE \
 	                    / sizeof( ctype_e ) ] \
 	                    __attribute__((aligned(BLIS_STACK_BUF_ALIGN_SIZE))); \
-	const bool_t    col_pref    = bli_cntx_l3_vir_ukr_prefers_cols_dt( dte, BLIS_GEMM_UKR, cntx ); \
+	const bool      col_pref    = bli_cntx_l3_vir_ukr_prefers_cols_dt( dte, BLIS_GEMM_UKR, cntx ); \
 	const inc_t     rs_ct       = ( col_pref ? 1 : NR ); \
 	const inc_t     cs_ct       = ( col_pref ? MR : 1 ); \
 \
@@ -368,8 +368,6 @@ void PASTEMAC2(chc,che,varname) \
 			   then accumulate it into C via the xpbys_mxn macro. */ \
 			/*if ( 1 )*/ \
 			{ \
-				/*bli_auxinfo_set_dt_on_output( dte, &aux );*/ \
-\
 				/* Invoke the gemm micro-kernel. */ \
 				gemm_ukr \
 				( \
@@ -392,48 +390,6 @@ void PASTEMAC2(chc,che,varname) \
 				  c11, rs_c,  cs_c \
 				); \
 			} \
-/*
-			else if ( m_cur == MR && n_cur == NR ) \
-			{ \
-				bli_auxinfo_set_dt_on_output( dtc, &aux ); \
-\
-				gemm_ukr \
-				( \
-				  k, \
-				  alpha_cast, \
-				  a1, \
-				  b1, \
-				  ( ctype_e* )beta_cast, \
-				  ( ctype_e* )c11, rs_c, cs_c, \
-				  &aux, \
-				  cntx  \
-				); \
-			} \
-			else \
-			{ \
-				bli_auxinfo_set_dt_on_output( dte, &aux ); \
-\
-				gemm_ukr \
-				( \
-				  k, \
-				  alpha_cast, \
-				  a1, \
-				  b1, \
-				  zero, \
-				  ct, rs_ct, cs_ct, \
-				  &aux, \
-				  cntx  \
-				); \
-\
-				PASTEMAC3(che,chc,chc,xpbys_mxn) \
-				( \
-				  m_cur, n_cur, \
-				  ct,  rs_ct, cs_ct, \
-				  beta_cast, \
-				  c11, rs_c,  cs_c \
-				); \
-			} \
-*/ \
 		} \
 	} \
 \

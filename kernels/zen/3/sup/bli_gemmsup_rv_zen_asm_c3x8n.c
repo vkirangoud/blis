@@ -1,4 +1,3 @@
-
 /*
 
    BLIS
@@ -6,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2020, Advanced Micro Devices, Inc.
+   Copyright (C) 2020 - 2024, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -138,6 +137,8 @@ void bli_cgemmsup_rv_zen_asm_3x8n
 	for (n_iter = 0; n_iter < n0 / 8; n_iter++)
 	{
 		// clear scratch registers.
+		xmm0 = _mm_setzero_ps();
+		xmm3 = _mm_setzero_ps();
 		ymm4 = _mm256_setzero_ps();
 		ymm5 = _mm256_setzero_ps();
 		ymm6 = _mm256_setzero_ps();
@@ -572,6 +573,8 @@ void bli_cgemmsup_rv_zen_asm_2x8n
 	for (n_iter = 0; n_iter < n0 / 8; n_iter++)
 	{
 		// clear scratch registers.
+		xmm0 = _mm_setzero_ps();
+		xmm3 = _mm_setzero_ps();
 		ymm4 = _mm256_setzero_ps();
 		ymm5 = _mm256_setzero_ps();
 		ymm6 = _mm256_setzero_ps();
@@ -919,6 +922,8 @@ void bli_cgemmsup_rv_zen_asm_1x8n
 	for (n_iter = 0; n_iter < n0 / 8; n_iter++)
 	{
 		// clear scratch registers.
+		xmm0 = _mm_setzero_ps();
+		xmm3 = _mm_setzero_ps();
 		ymm4 = _mm256_setzero_ps();
 		ymm5 = _mm256_setzero_ps();
 		ymm6 = _mm256_setzero_ps();
@@ -1280,6 +1285,9 @@ void bli_cgemmsup_rv_zen_asm_3x4
 		else{
 			ymm1 = _mm256_broadcast_ss((float const *)(beta));       // load alpha_r and duplicate
 			ymm2 = _mm256_broadcast_ss((float const *)(&beta->imag));    // load alpha_i and duplicate
+
+			xmm0 = _mm_setzero_ps();
+			xmm3 = _mm_setzero_ps();
 
 			//Multiply ymm4 with beta
 			xmm0 = _mm_loadl_pi(xmm0, (__m64 const *) (tC)) ;

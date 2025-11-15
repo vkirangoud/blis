@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2018, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -69,7 +69,7 @@ err_t bli_l3_sup_thread_decorator
 	bli_sba_rntm_set_pool( 0, array, rntm );
 
 	// Set the packing block allocator field of the rntm.
-	bli_membrk_rntm_set_membrk( rntm );
+	bli_pba_rntm_set_pba( rntm );
 
 #ifndef SKIP_THRINFO_TREE
 	// Allcoate a global communicator for the root thrinfo_t structures.

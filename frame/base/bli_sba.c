@@ -4,7 +4,7 @@
    An object-based framework for developing high-performance BLAS-like
    libraries.
 
-   Copyright (C) 2018 - 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -34,8 +34,9 @@
 
 #include "blis.h"
 
-// The small block allocator: an apool_t of array_t of pool_t.
-static apool_t sba;
+// Statically initialize the mutex within the small block allocator.
+// Note that the sba is an apool_t of array_t of pool_t.
+static apool_t sba = { .mutex = BLIS_PTHREAD_MUTEX_INITIALIZER };
 
 apool_t* bli_sba_query( void )
 {
@@ -61,11 +62,12 @@ void* bli_sba_acquire
      )
 {
 	void* block;
+	err_t r_val;
 
 #ifdef BLIS_ENABLE_SBA_POOLS
 	if ( rntm == NULL )
 	{
-		block = bli_malloc_intl( req_size );
+		block = bli_malloc_intl( req_size, &r_val );
 	}
 	else
 	{
@@ -95,7 +97,7 @@ void* bli_sba_acquire
 	}
 #else
 
-	block = bli_malloc_intl( req_size );
+	block = bli_malloc_intl( req_size, &r_val );
 
 #endif
 

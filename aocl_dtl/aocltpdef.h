@@ -1,11 +1,11 @@
 
 /*===================================================================
  * File Name :  aocltpdef.h
- * 
+ *
  * Description : Abstraction for various datatypes used by DTL.
  *
- * Copyright (C) 2020, Advanced Micro Devices, Inc
- * 
+ * Copyright (C) 2020 - 2023, Advanced Micro Devices, Inc. All rights reserved.
+ *
  *==================================================================*/
 #ifndef AOCL_TYPEDEF_H_
 #define AOCL_TYPEDEF_H_
@@ -35,8 +35,11 @@ typedef signed long int         int32;
 typedef short int               int16;
 
 typedef Void                    *AOCL_HANDLE;
+#ifdef BLIS_ENABLE_PTHREADS
+typedef long int                AOCL_TID;
+#else
 typedef pid_t                   AOCL_TID;
-
+#endif
 #endif /*AOCL_TYPEDEF_H_ */
 
 /* --------------- End of aocltpdef.h ----------------- */

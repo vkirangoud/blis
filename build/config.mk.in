@@ -5,6 +5,7 @@
 #  libraries.
 #
 #  Copyright (C) 2014, The University of Texas at Austin
+#  Copyright (C) 2022, Advanced Micro Devices, Inc. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions are
@@ -93,6 +94,7 @@ CC                := @CC@
 GCC_OT_4_9_0      := @gcc_older_than_4_9_0@
 GCC_OT_6_1_0      := @gcc_older_than_6_1_0@
 GCC_OT_9_1_0      := @gcc_older_than_9_1_0@
+GCC_OT_11_2_0      := @gcc_older_than_11_2_0@
 
 # The C++ compiler. NOTE: A C++ is typically not needed.
 CXX               := @CXX@
@@ -116,6 +118,9 @@ LDFLAGS_PRESET    := @ldflags_preset@
 
 # The level of debugging info to generate.
 DEBUG_TYPE        := @debug_type@
+
+# Whether operating system support was requested via --enable-system.
+ENABLE_SYSTEM     := @enable_system@
 
 # The requested threading model.
 THREADING_MODEL   := @threading_model@
@@ -168,6 +173,9 @@ ARG_MAX_HACK      := @enable_arg_max_hack@
 MK_ENABLE_STATIC  := @enable_static@
 MK_ENABLE_SHARED  := @enable_shared@
 
+# Whether to use an install_name based on @rpath.
+MK_ENABLE_RPATH   := @enable_rpath@
+
 # Whether to export all symbols within the shared library, even those symbols
 # that are considered to be for internal use only.
 EXPORT_SHARED     := @export_shared@
@@ -179,13 +187,32 @@ MK_ENABLE_CBLAS   := @enable_cblas@
 # Whether libblis will depend on libmemkind for certain memory allocations.
 MK_ENABLE_MEMKIND := @enable_memkind@
 
+# The names of the addons to include when building BLIS. If empty, no addons
+# will be included.
+ADDON_LIST        := @addon_list@
+
 # The name of a sandbox defining an alternative gemm implementation. If empty,
 # no sandbox will be used and the conventional gemm implementation will remain
 # enabled.
 SANDBOX           := @sandbox@
 
-# The name of the pthreads library.
+# The name of the pthreads library. If --disable-system was given, then this
+# variable is set to the empty value.
 LIBPTHREAD        := @libpthread@
+
+# Complex return scheme configuration
+MK_ENABLE_TRSM_PREINVERSION := @enable_trsm_preinversion@
+
+# Complex return scheme configuration
+MK_COMPLEX_RETURN_SCHEME := @complex_return@
+
+# Status of aocl dynamic configuration
+MK_ENABLE_AOCL_DYNAMIC := @enable_aocl_dynamic@
+
+# BLAS int size
+MK_BLAS_INT_TYPE_SIZE := @blas_int_type_size@
+
+MK_IS_ARCH_ZEN := @enable_aocl_zen@
 
 # end of ifndef CONFIG_MK_INCLUDED conditional block
 endif

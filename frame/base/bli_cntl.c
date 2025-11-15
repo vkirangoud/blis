@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2018 - 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -192,7 +192,7 @@ void bli_cntl_free_w_thrinfo
 		printf( "bli_cntl_free_w_thrinfo(): releasing mem pool block.\n" );
 		#endif
 
-		bli_membrk_release( rntm, cntl_pack_mem );
+		bli_pba_release( rntm, cntl_pack_mem );
 	}
 
 	// Free the current node.
@@ -236,7 +236,7 @@ void bli_cntl_free_wo_thrinfo
 	// allocated.
 	if ( bli_mem_is_alloc( cntl_pack_mem ) )
 	{
-		bli_membrk_release( rntm, cntl_pack_mem );
+		bli_pba_release( rntm, cntl_pack_mem );
 	}
 
 	// Free the current node.

@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2018 - 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -69,6 +69,7 @@ void bli_trsm_lu_ker_var2
        thrinfo_t* thread
      )
 {
+	AOCL_DTL_TRACE_ENTRY(AOCL_DTL_LEVEL_TRACE_7);
 	num_t     dt_exec   = bli_obj_exec_dt( c );
 
 	doff_t    diagoffa  = bli_obj_diag_offset( a );
@@ -134,6 +135,7 @@ void bli_trsm_lu_ker_var2
 	   cntx,
 	   rntm,
 	   thread );
+	AOCL_DTL_TRACE_EXIT(AOCL_DTL_LEVEL_TRACE_7);
 }
 
 
@@ -158,6 +160,7 @@ void PASTEMAC(ch,varname) \
        thrinfo_t* thread  \
      ) \
 { \
+	AOCL_DTL_TRACE_ENTRY(AOCL_DTL_LEVEL_TRACE_8); \
 	const num_t     dt          = PASTEMAC(ch,type); \
 \
 	/* Alias some constants to simpler names. */ \
@@ -170,7 +173,13 @@ void PASTEMAC(ch,varname) \
 	PASTECH(ch,gemmtrsm_ukr_ft) \
 	               gemmtrsm_ukr = bli_cntx_get_l3_vir_ukr_dt( dt, BLIS_GEMMTRSM_U_UKR, cntx ); \
 	PASTECH(ch,gemm_ukr_ft) \
-	                   gemm_ukr = bli_cntx_get_l3_vir_ukr_dt( dt, BLIS_GEMM_UKR, cntx ); \
+	                   gemm_ukr = bli_cntx_get_l3_vir_ukr_dt( dt, BLIS_GEMM_FOR_TRSM_UKR, cntx ); \
+	bool col_pref = bli_cntx_l3_vir_ukr_prefers_cols_dt( dt, BLIS_GEMM_FOR_TRSM_UKR, cntx ); \
+	if( gemm_ukr == NULL || bli_cntx_method( cntx ) != BLIS_NAT ) \
+	{ \
+		gemm_ukr = bli_cntx_get_l3_vir_ukr_dt( dt, BLIS_GEMM_UKR, cntx ); \
+		col_pref = bli_cntx_l3_vir_ukr_prefers_cols_dt( dt, BLIS_GEMM_UKR, cntx ); \
+	} \
 \
 	/* Temporary C buffer for edge cases. Note that the strides of this
 	   temporary buffer are set so that they match the storage of the
@@ -179,7 +188,6 @@ void PASTEMAC(ch,varname) \
 	ctype           ct[ BLIS_STACK_BUF_MAX_SIZE \
 	                    / sizeof( ctype ) ] \
 	                    __attribute__((aligned(BLIS_STACK_BUF_ALIGN_SIZE))); \
-	const bool_t    col_pref    = bli_cntx_l3_vir_ukr_prefers_cols_dt( dt, BLIS_GEMM_UKR, cntx ); \
 	const inc_t     rs_ct       = ( col_pref ? 1 : NR ); \
 	const inc_t     cs_ct       = ( col_pref ? MR : 1 ); \
 \
@@ -210,9 +218,6 @@ void PASTEMAC(ch,varname) \
 	inc_t           rstep_c, cstep_c; \
 	inc_t           istep_a; \
 	inc_t           istep_b; \
-	inc_t           off_scl; \
-	inc_t           ss_a_num; \
-	inc_t           ss_a_den; \
 	inc_t           ps_a_cur; \
 	inc_t           is_a_cur; \
 	auxinfo_t       aux; \
@@ -237,11 +242,19 @@ void PASTEMAC(ch,varname) \
 	     ( bli_is_odd( PACKNR ) && bli_is_odd( MR ) ) ) bli_abort(); \
 \
 	/* If any dimension is zero, return immediately. */ \
-	if ( bli_zero_dim3( m, n, k ) ) return; \
+	if ( bli_zero_dim3( m, n, k ) ) \
+	{ \
+		AOCL_DTL_TRACE_EXIT(AOCL_DTL_LEVEL_TRACE_8); \
+		return; \
+	} \
 \
 	/* Safeguard: If matrix A is below the diagonal, it is implicitly zero.
 	   So we do nothing. */ \
-	if ( bli_is_strictly_below_diag_n( diagoffa, m, k ) ) return; \
+	if ( bli_is_strictly_below_diag_n( diagoffa, m, k ) ) \
+	{ \
+		AOCL_DTL_TRACE_EXIT(AOCL_DTL_LEVEL_TRACE_8) \
+		return; \
+	} \
 \
 	/* Compute k_full as k inflated up to a multiple of MR. This is
 	   needed because some parameter combinations of trsm reduce k
@@ -250,29 +263,6 @@ void PASTEMAC(ch,varname) \
 	   matrix), which is used by 4m1/3m1 implementations, we need
 	   this unreduced value of k. */ \
 	k_full = ( k % MR != 0 ? k + MR - ( k % MR ) : k ); \
-\
-	/* Compute indexing scaling factor for for 4m or 3m. This is
-	   needed because one of the packing register blocksizes (PACKMR
-	   or PACKNR) is used to index into the micro-panels of the non-
-	   triangular matrix when computing with a diagonal-intersecting
-	   micro-panel of the triangular matrix. In the case of 4m or 3m,
-	   real values are stored in both sub-panels, and so the indexing
-	   needs to occur in units of real values. The value computed
-	   here is divided into the complex pointer offset to cause the
-	   pointer to be advanced by the correct value. */ \
-	if ( bli_is_4mi_packed( schema_a ) || \
-	     bli_is_3mi_packed( schema_a ) || \
-	     bli_is_rih_packed( schema_a ) ) off_scl = 2; \
-	else                                 off_scl = 1; \
-\
-	/* Compute the storage stride scaling. Usually this is just 1.
-	   However, in the case of interleaved 3m, we need to scale the
-	   offset by 3/2. Note that real-only, imag-only, and summed-only
-	   packing formats are not applicable here since trsm is a two-
-	   operand operation only (unlike trmm, which is capable of three-
-	   operand). */ \
-	if ( bli_is_3mi_packed( schema_a ) ) { ss_a_num = 3; ss_a_den = 2; } \
-	else                                 { ss_a_num = 1; ss_a_den = 1; } \
 \
 	/* If there is a zero region to the left of where the diagonal of A
 	   intersects the top edge of the block, adjust the pointer to B and
@@ -284,7 +274,7 @@ void PASTEMAC(ch,varname) \
 		i        = diagoffa; \
 		k        = k - i; \
 		diagoffa = 0; \
-		b_cast   = b_cast + ( i * PACKNR ) / off_scl; \
+		b_cast   = b_cast + i * PACKNR; \
 	} \
 \
 	/* If there is a zero region below where the diagonal of A intersects the
@@ -347,9 +337,6 @@ void PASTEMAC(ch,varname) \
 \
 	/* Save the imaginary stride of B to the auxinfo_t object. */ \
 	bli_auxinfo_set_is_b( istep_b, &aux ); \
-\
-	/* Save the desired output datatype (indicating no typecasting). */ \
-	/*bli_auxinfo_set_dt_on_output( dt, &aux );*/ \
 \
 	/* We don't bother querying the thrinfo_t node for the 1st loop because
 	   we can't parallelize that loop in trsm due to the inter-iteration
@@ -421,18 +408,18 @@ void PASTEMAC(ch,varname) \
 				   intersecting micro-panel. */ \
 				is_a_cur  = k_a1112 * PACKMR; \
 				is_a_cur += ( bli_is_odd( is_a_cur ) ? 1 : 0 ); \
-				ps_a_cur  = ( is_a_cur * ss_a_num ) / ss_a_den; \
+				ps_a_cur  = is_a_cur; \
 \
 				/* Compute the addresses of the triangular block A11 and the
 				   panel A12. */ \
 				a11 = a1; \
-				/* a12 = a1 + ( k_a11 * PACKMR ) / off_scl; */ \
-				a12 = bli_ptr_inc_by_frac( a1, sizeof( ctype ), k_a11 * PACKMR, off_scl ); \
+				a12 = a1 + k_a11 * PACKMR; \
+				/*a12 = bli_ptr_inc_by_frac( a1, sizeof( ctype ), k_a11 * PACKMR, 1 );*/ \
 \
 				/* Compute the addresses of the panel B01 and the block
 				   B11. */ \
-				b11 = b1 + ( off_a11 * PACKNR ) / off_scl; \
-				b21 = b1 + ( off_a12 * PACKNR ) / off_scl; \
+				b11 = b1 + off_a11 * PACKNR; \
+				b21 = b1 + off_a12 * PACKNR; \
 \
 				/* Compute the addresses of the next panels of A and B. */ \
 				a2 = a1 + ps_a_cur; \
@@ -448,10 +435,6 @@ void PASTEMAC(ch,varname) \
 				   object. */ \
 				bli_auxinfo_set_next_a( a2, &aux ); \
 				bli_auxinfo_set_next_b( b2, &aux ); \
-\
-				/* Save the 4m1/3m1 imaginary stride of A to the auxinfo_t
-				   object. */ \
-				bli_auxinfo_set_is_a( is_a_cur, &aux ); \
 \
 				/* Handle interior and edge cases separately. */ \
 				if ( m_cur == MR && n_cur == NR ) \
@@ -512,10 +495,6 @@ void PASTEMAC(ch,varname) \
 				   object. */ \
 				bli_auxinfo_set_next_a( a2, &aux ); \
 				bli_auxinfo_set_next_b( b2, &aux ); \
-\
-				/* Save the 4m1/3m1 imaginary stride of A to the auxinfo_t
-				   object. */ \
-				bli_auxinfo_set_is_a( istep_a, &aux ); \
 \
 				/* Handle interior and edge cases separately. */ \
 				if ( m_cur == MR && n_cur == NR ) \
@@ -582,6 +561,7 @@ PASTEMAC(ch,fprintm)( stdout, "trsm_lu_ker_var2: b11 after (diag)", MR, NR, b11,
 PASTEMAC(ch,fprintm)( stdout, "trsm_lu_ker_var2: b11 after (diag)", MR, NR, b11, NR, 1, "%5.2f", "" ); \
 PASTEMAC(ch,fprintm)( stdout, "trsm_lu_ker_var2: ct after (diag)", m_cur, n_cur, ct, rs_ct, cs_ct, "%5.2f", "" ); \
 */ \
+	AOCL_DTL_TRACE_EXIT(AOCL_DTL_LEVEL_TRACE_8); \
 }
 
 INSERT_GENTFUNC_BASIC0( trsm_lu_ker_var2 )

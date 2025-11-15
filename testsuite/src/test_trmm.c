@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2018 - 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -272,8 +272,6 @@ void libblis_test_trmm_impl
 	{
 		case BLIS_TEST_SEQ_FRONT_END:
 		bli_trmm( side, alpha, a, b );
-		//bli_trmm4m( side, alpha, a, b );
-		//bli_trmm3m( side, alpha, a, b );
 		break;
 
 		default:

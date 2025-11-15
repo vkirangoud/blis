@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2018, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -76,7 +76,7 @@ err_t bli_l3_sup_thread_decorator
 	// Set the packing block allocator field of the rntm. This will be
 	// inherited by all of the child threads when they make local copies of
 	// the rntm below.
-	bli_membrk_rntm_set_membrk( rntm );
+	bli_pba_rntm_set_pba( rntm );
 
 	// Allcoate a global communicator for the root thrinfo_t structures.
 	thrcomm_t* restrict gl_comm = bli_thrcomm_create( rntm, n_threads );
@@ -93,7 +93,7 @@ err_t bli_l3_sup_thread_decorator
 		// Query the thread's id from OpenMP.
 		const dim_t tid = omp_get_thread_num();
 
-		// Check for a somewhat obscure OpenMP thread-mistmatch issue.
+		// Check for a somewhat obscure OpenMP thread-mismatch issue.
 		// NOTE: This calls the same function used for the conventional/large
 		// code path.
 		bli_l3_thread_decorator_thread_check( n_threads, tid, gl_comm, rntm_p );

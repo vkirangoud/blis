@@ -6,7 +6,7 @@
 
    Copyright (C) 2014, The University of Texas at Austin
    Copyright (C) 2016, Hewlett Packard Enterprise Development LP
-   Copyright (C) 2020, Advanced Micro Devices, Inc.
+   Copyright (C) 2021 - 2025, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -48,6 +48,7 @@
 #elif __STDC_VERSION__ >= 199901L
   // For C99 (or later), include stdint.h.
   #include <stdint.h>
+  #include <stdbool.h>
 #else
   // When stdint.h is not available, manually typedef the types we will use.
   #ifdef _WIN32
@@ -87,19 +88,25 @@ typedef unsigned long int guint_t;
 
 // -- Boolean type --
 
-typedef  gint_t  bool_t;
-
-
-// -- Boolean values --
-
+// NOTE: bool_t is no longer used and has been replaced with C99's bool type.
+// Not defining the bool type for C++ code in windows platform to avoid
+// duplicate definition build error.
+#ifdef _WIN32
+#ifndef __cplusplus
+#undef bool
+typedef  gint_t  bool;
+#endif
+#endif
+// BLIS uses TRUE and FALSE macro constants as possible boolean values, but we
+// define these macros in terms of true and false, respectively, which are
+// defined by C99 in stdbool.h.
 #ifndef TRUE
-  #define TRUE  1
+  #define TRUE  true
 #endif
 
 #ifndef FALSE
-  #define FALSE 0
+  #define FALSE false
 #endif
-
 
 // -- Special-purpose integers --
 
@@ -111,7 +118,11 @@ typedef   gint_t dim_t;      // dimension type
 #endif
 typedef   gint_t inc_t;      // increment/stride type
 typedef   gint_t doff_t;     // diagonal offset type
-typedef  guint_t siz_t;      // byte size type
+#ifdef BLIS_ARCH_64
+typedef uint64_t siz_t;      // byte size type
+#else
+typedef uint32_t siz_t;      // byte size type
+#endif
 typedef uint32_t objbits_t;  // object information bit field
 
 // -- Real types --
@@ -149,7 +160,7 @@ typedef uint32_t objbits_t;  // object information bit field
 	// interoperability with BLIS.
 	#ifndef _DEFINED_SCOMPLEX
 	#define _DEFINED_SCOMPLEX
-	typedef struct
+	typedef struct scomplex
 	{
 		float  real;
 		float  imag;
@@ -160,7 +171,7 @@ typedef uint32_t objbits_t;  // object information bit field
 	// interoperability with BLIS.
 	#ifndef _DEFINED_DCOMPLEX
 	#define _DEFINED_DCOMPLEX
-	typedef struct
+	typedef struct dcomplex
 	{
 		double real;
 		double imag;
@@ -197,15 +208,18 @@ typedef double    f77_double;
 typedef scomplex  f77_scomplex;
 typedef dcomplex  f77_dcomplex;
 
-// -- Void function pointer types --
+// -- Misc. function pointer types --
 
 // Note: This type should be used in any situation where the address of a
 // *function* will be conveyed or stored prior to it being typecast back
 // to the correct function type. It does not need to be used when conveying
 // or storing the address of *data* (such as an array of float or double).
-
 //typedef void (*void_fp)( void );
 typedef void* void_fp;
+
+// Typedef function pointer types for malloc() and free() substitutes.
+typedef void* (*malloc_ft)( size_t size );
+typedef void  (*free_ft)  ( void*  p    );
 
 
 //
@@ -244,24 +258,10 @@ typedef void* void_fp;
            - 1 0000 01: packed by columns
            - 1 0000 10: packed by row panels
            - 1 0000 11: packed by column panels
-           - 1 0001 10: packed by 4m interleaved row panels
-           - 1 0001 11: packed by 4m interleaved column panels
-           - 1 0010 10: packed by 3m interleaved row panels
-           - 1 0010 11: packed by 3m interleaved column panels
-           - 1 0011 10: packed by 4m separated row panels (not used)
-           - 1 0011 11: packed by 4m separated column panels (not used)
-           - 1 0100 10: packed by 3m separated row panels
-           - 1 0100 11: packed by 3m separated column panels
-           - 1 0101 10: packed real-only row panels
-           - 1 0101 11: packed real-only column panels
-           - 1 0110 10: packed imag-only row panels
-           - 1 0110 11: packed imag-only column panels
-           - 1 0111 10: packed real+imag row panels
-           - 1 0111 11: packed real+imag column panels
-           - 1 1000 10: packed by 1m expanded row panels
-           - 1 1000 11: packed by 1m expanded column panels
-           - 1 1001 10: packed by 1m reordered row panels
-           - 1 1001 11: packed by 1m reordered column panels
+           - 1 0001 10: packed by 1m expanded row panels
+           - 1 0001 11: packed by 1m expanded column panels
+           - 1 0010 10: packed by 1m reordered row panels
+           - 1 0010 11: packed by 1m reordered column panels
        23  Packed panel order if upper-stored
            - 0 == forward order if upper
            - 1 == reverse order if upper
@@ -381,7 +381,7 @@ typedef void* void_fp;
 #define BLIS_BITVAL_SINGLE_PREC               0x0
 #define BLIS_BITVAL_DOUBLE_PREC               BLIS_PRECISION_BIT
 #define   BLIS_BITVAL_FLOAT_TYPE              0x0
-#define   BLIS_BITVAL_SCOMPLEX_TYPE           BLIS_DOMAIN_BIT  
+#define   BLIS_BITVAL_SCOMPLEX_TYPE           BLIS_DOMAIN_BIT
 #define   BLIS_BITVAL_DOUBLE_TYPE             BLIS_PRECISION_BIT
 #define   BLIS_BITVAL_DCOMPLEX_TYPE         ( BLIS_DOMAIN_BIT | BLIS_PRECISION_BIT )
 #define   BLIS_BITVAL_INT_TYPE                0x04
@@ -391,42 +391,21 @@ typedef void* void_fp;
 #define BLIS_BITVAL_NO_CONJ                   0x0
 #define BLIS_BITVAL_CONJ                      BLIS_CONJ_BIT
 #define BLIS_BITVAL_CONJ_TRANS              ( BLIS_CONJ_BIT | BLIS_TRANS_BIT )
-#define BLIS_BITVAL_ZEROS                     0x0 
+#define BLIS_BITVAL_ZEROS                     0x0
 #define BLIS_BITVAL_UPPER                   ( BLIS_UPPER_BIT | BLIS_DIAG_BIT )
 #define BLIS_BITVAL_LOWER                   ( BLIS_LOWER_BIT | BLIS_DIAG_BIT )
-#define BLIS_BITVAL_DENSE                     BLIS_UPLO_BITS  
+#define BLIS_BITVAL_DENSE                     BLIS_UPLO_BITS
 #define BLIS_BITVAL_NONUNIT_DIAG              0x0
 #define BLIS_BITVAL_UNIT_DIAG                 BLIS_UNIT_DIAG_BIT
 #define BLIS_BITVAL_INVERT_DIAG               BLIS_INVERT_DIAG_BIT
 #define BLIS_BITVAL_NOT_PACKED                0x0
-#define   BLIS_BITVAL_4MI                   ( 0x1  << BLIS_PACK_FORMAT_SHIFT )
-#define   BLIS_BITVAL_3MI                   ( 0x2  << BLIS_PACK_FORMAT_SHIFT )
-#define   BLIS_BITVAL_4MS                   ( 0x3  << BLIS_PACK_FORMAT_SHIFT )
-#define   BLIS_BITVAL_3MS                   ( 0x4  << BLIS_PACK_FORMAT_SHIFT )
-#define   BLIS_BITVAL_RO                    ( 0x5  << BLIS_PACK_FORMAT_SHIFT )
-#define   BLIS_BITVAL_IO                    ( 0x6  << BLIS_PACK_FORMAT_SHIFT )
-#define   BLIS_BITVAL_RPI                   ( 0x7  << BLIS_PACK_FORMAT_SHIFT )
-#define   BLIS_BITVAL_1E                    ( 0x8  << BLIS_PACK_FORMAT_SHIFT )
-#define   BLIS_BITVAL_1R                    ( 0x9  << BLIS_PACK_FORMAT_SHIFT )
+#define   BLIS_BITVAL_1E                    ( 0x1  << BLIS_PACK_FORMAT_SHIFT )
+#define   BLIS_BITVAL_1R                    ( 0x2  << BLIS_PACK_FORMAT_SHIFT )
 #define   BLIS_BITVAL_PACKED_UNSPEC         ( BLIS_PACK_BIT                                                            )
 #define   BLIS_BITVAL_PACKED_ROWS           ( BLIS_PACK_BIT                                                            )
 #define   BLIS_BITVAL_PACKED_COLUMNS        ( BLIS_PACK_BIT                                         | BLIS_PACK_RC_BIT )
 #define   BLIS_BITVAL_PACKED_ROW_PANELS     ( BLIS_PACK_BIT                   | BLIS_PACK_PANEL_BIT                    )
 #define   BLIS_BITVAL_PACKED_COL_PANELS     ( BLIS_PACK_BIT                   | BLIS_PACK_PANEL_BIT | BLIS_PACK_RC_BIT )
-#define   BLIS_BITVAL_PACKED_ROW_PANELS_4MI ( BLIS_PACK_BIT | BLIS_BITVAL_4MI | BLIS_PACK_PANEL_BIT                    )
-#define   BLIS_BITVAL_PACKED_COL_PANELS_4MI ( BLIS_PACK_BIT | BLIS_BITVAL_4MI | BLIS_PACK_PANEL_BIT | BLIS_PACK_RC_BIT )
-#define   BLIS_BITVAL_PACKED_ROW_PANELS_3MI ( BLIS_PACK_BIT | BLIS_BITVAL_3MI | BLIS_PACK_PANEL_BIT                    )
-#define   BLIS_BITVAL_PACKED_COL_PANELS_3MI ( BLIS_PACK_BIT | BLIS_BITVAL_3MI | BLIS_PACK_PANEL_BIT | BLIS_PACK_RC_BIT )
-#define   BLIS_BITVAL_PACKED_ROW_PANELS_4MS ( BLIS_PACK_BIT | BLIS_BITVAL_4MS | BLIS_PACK_PANEL_BIT                    )
-#define   BLIS_BITVAL_PACKED_COL_PANELS_4MS ( BLIS_PACK_BIT | BLIS_BITVAL_4MS | BLIS_PACK_PANEL_BIT | BLIS_PACK_RC_BIT )
-#define   BLIS_BITVAL_PACKED_ROW_PANELS_3MS ( BLIS_PACK_BIT | BLIS_BITVAL_3MS | BLIS_PACK_PANEL_BIT                    )
-#define   BLIS_BITVAL_PACKED_COL_PANELS_3MS ( BLIS_PACK_BIT | BLIS_BITVAL_3MS | BLIS_PACK_PANEL_BIT | BLIS_PACK_RC_BIT )
-#define   BLIS_BITVAL_PACKED_ROW_PANELS_RO  ( BLIS_PACK_BIT | BLIS_BITVAL_RO  | BLIS_PACK_PANEL_BIT                    )
-#define   BLIS_BITVAL_PACKED_COL_PANELS_RO  ( BLIS_PACK_BIT | BLIS_BITVAL_RO  | BLIS_PACK_PANEL_BIT | BLIS_PACK_RC_BIT )
-#define   BLIS_BITVAL_PACKED_ROW_PANELS_IO  ( BLIS_PACK_BIT | BLIS_BITVAL_IO  | BLIS_PACK_PANEL_BIT                    )
-#define   BLIS_BITVAL_PACKED_COL_PANELS_IO  ( BLIS_PACK_BIT | BLIS_BITVAL_IO  | BLIS_PACK_PANEL_BIT | BLIS_PACK_RC_BIT )
-#define   BLIS_BITVAL_PACKED_ROW_PANELS_RPI ( BLIS_PACK_BIT | BLIS_BITVAL_RPI | BLIS_PACK_PANEL_BIT                    )
-#define   BLIS_BITVAL_PACKED_COL_PANELS_RPI ( BLIS_PACK_BIT | BLIS_BITVAL_RPI | BLIS_PACK_PANEL_BIT | BLIS_PACK_RC_BIT )
 #define   BLIS_BITVAL_PACKED_ROW_PANELS_1E  ( BLIS_PACK_BIT | BLIS_BITVAL_1E  | BLIS_PACK_PANEL_BIT                    )
 #define   BLIS_BITVAL_PACKED_COL_PANELS_1E  ( BLIS_PACK_BIT | BLIS_BITVAL_1E  | BLIS_PACK_PANEL_BIT | BLIS_PACK_RC_BIT )
 #define   BLIS_BITVAL_PACKED_ROW_PANELS_1R  ( BLIS_PACK_BIT | BLIS_BITVAL_1R  | BLIS_PACK_PANEL_BIT                    )
@@ -456,7 +435,8 @@ typedef enum
 	BLIS_NO_TRANSPOSE      = 0x0,
 	BLIS_TRANSPOSE         = BLIS_BITVAL_TRANS,
 	BLIS_CONJ_NO_TRANSPOSE = BLIS_BITVAL_CONJ,
-	BLIS_CONJ_TRANSPOSE    = BLIS_BITVAL_CONJ_TRANS
+	BLIS_CONJ_TRANSPOSE    = BLIS_BITVAL_CONJ_TRANS,
+	BLIS_PACKED            = BLIS_BITVAL_PACKED_UNSPEC
 } trans_t;
 
 typedef enum
@@ -538,20 +518,6 @@ typedef enum
 	BLIS_PACKED_COLUMNS        = BLIS_BITVAL_PACKED_COLUMNS,
 	BLIS_PACKED_ROW_PANELS     = BLIS_BITVAL_PACKED_ROW_PANELS,
 	BLIS_PACKED_COL_PANELS     = BLIS_BITVAL_PACKED_COL_PANELS,
-	BLIS_PACKED_ROW_PANELS_4MI = BLIS_BITVAL_PACKED_ROW_PANELS_4MI,
-	BLIS_PACKED_COL_PANELS_4MI = BLIS_BITVAL_PACKED_COL_PANELS_4MI,
-	BLIS_PACKED_ROW_PANELS_3MI = BLIS_BITVAL_PACKED_ROW_PANELS_3MI,
-	BLIS_PACKED_COL_PANELS_3MI = BLIS_BITVAL_PACKED_COL_PANELS_3MI,
-	BLIS_PACKED_ROW_PANELS_4MS = BLIS_BITVAL_PACKED_ROW_PANELS_4MS,
-	BLIS_PACKED_COL_PANELS_4MS = BLIS_BITVAL_PACKED_COL_PANELS_4MS,
-	BLIS_PACKED_ROW_PANELS_3MS = BLIS_BITVAL_PACKED_ROW_PANELS_3MS,
-	BLIS_PACKED_COL_PANELS_3MS = BLIS_BITVAL_PACKED_COL_PANELS_3MS,
-	BLIS_PACKED_ROW_PANELS_RO  = BLIS_BITVAL_PACKED_ROW_PANELS_RO,
-	BLIS_PACKED_COL_PANELS_RO  = BLIS_BITVAL_PACKED_COL_PANELS_RO,
-	BLIS_PACKED_ROW_PANELS_IO  = BLIS_BITVAL_PACKED_ROW_PANELS_IO,
-	BLIS_PACKED_COL_PANELS_IO  = BLIS_BITVAL_PACKED_COL_PANELS_IO,
-	BLIS_PACKED_ROW_PANELS_RPI = BLIS_BITVAL_PACKED_ROW_PANELS_RPI,
-	BLIS_PACKED_COL_PANELS_RPI = BLIS_BITVAL_PACKED_COL_PANELS_RPI,
 	BLIS_PACKED_ROW_PANELS_1E  = BLIS_BITVAL_PACKED_ROW_PANELS_1E,
 	BLIS_PACKED_COL_PANELS_1E  = BLIS_BITVAL_PACKED_COL_PANELS_1E,
 	BLIS_PACKED_ROW_PANELS_1R  = BLIS_BITVAL_PACKED_ROW_PANELS_1R,
@@ -559,10 +525,8 @@ typedef enum
 } pack_t;
 
 // We combine row and column packing into one "type", and we start
-// with BLIS_PACKED_ROW_PANELS, _COLUMN_PANELS. We also count the
-// schema pair for "4ms" (4m separated), because its bit value has
-// been reserved, even though we don't use it.
-#define BLIS_NUM_PACK_SCHEMA_TYPES 10
+// with BLIS_PACKED_ROW_PANELS, _COLUMN_PANELS.
+#define BLIS_NUM_PACK_SCHEMA_TYPES 3
 
 
 // -- Pack order type --
@@ -655,12 +619,7 @@ typedef enum
 
 typedef enum
 {
-	BLIS_3MH       = 0,
-	BLIS_3M1,
-	BLIS_4MH,
-	BLIS_4M1B,
-	BLIS_4M1A,
-	BLIS_1M,
+	BLIS_1M        = 0,
 	BLIS_NAT,
 	BLIS_IND_FIRST = 0,
 	BLIS_IND_LAST  = BLIS_NAT
@@ -668,13 +627,8 @@ typedef enum
 
 #define BLIS_NUM_IND_METHODS (BLIS_NAT+1)
 
-// These are used in bli_*_oapi.c to construct the ind_t values from
+// These are used in bli_l3_*_oapi.c to construct the ind_t values from
 // the induced method substrings that go into function names.
-#define bli_3mh  BLIS_3MH
-#define bli_3m1  BLIS_3M1
-#define bli_4mh  BLIS_4MH
-#define bli_4mb  BLIS_4M1B
-#define bli_4m1  BLIS_4M1A
 #define bli_1m   BLIS_1M
 #define bli_nat  BLIS_NAT
 
@@ -685,6 +639,7 @@ typedef enum
 {
 	BLIS_ADDV_KER  = 0,
 	BLIS_AMAXV_KER,
+    BLIS_AMINV_KER,
 	BLIS_AXPBYV_KER,
 	BLIS_AXPYV_KER,
 	BLIS_COPYV_KER,
@@ -699,7 +654,7 @@ typedef enum
 	BLIS_XPBYV_KER
 } l1vkr_t;
 
-#define BLIS_NUM_LEVEL1V_KERS 14
+#define BLIS_NUM_LEVEL1V_KERS 15
 
 
 typedef enum
@@ -748,6 +703,7 @@ typedef enum
 	BLIS_PACKM_29XK_KER = 29,
 	BLIS_PACKM_30XK_KER = 30,
 	BLIS_PACKM_31XK_KER = 31,
+	BLIS_PACKM_32XK_KER = 32,
 
 	BLIS_UNPACKM_0XK_KER  = 0,
 	BLIS_UNPACKM_1XK_KER  = 1,
@@ -784,7 +740,7 @@ typedef enum
 
 } l1mkr_t;
 
-#define BLIS_NUM_PACKM_KERS   32
+#define BLIS_NUM_PACKM_KERS   33
 #define BLIS_NUM_UNPACKM_KERS 32
 
 
@@ -794,10 +750,11 @@ typedef enum
 	BLIS_GEMMTRSM_L_UKR,
 	BLIS_GEMMTRSM_U_UKR,
 	BLIS_TRSM_L_UKR,
-	BLIS_TRSM_U_UKR
+	BLIS_TRSM_U_UKR,
+	BLIS_GEMM_FOR_TRSM_UKR
 } l3ukr_t;
 
-#define BLIS_NUM_LEVEL3_UKRS 5
+#define BLIS_NUM_LEVEL3_UKRS 6
 
 
 typedef enum
@@ -926,11 +883,12 @@ typedef enum
 	BLIS_TRMM3,
 	BLIS_TRMM,
 	BLIS_TRSM,
-
+	BLIS_GEMMT,
+	BLIS_GEMM_MD,
 	BLIS_NOID
 } opid_t;
 
-#define BLIS_NUM_LEVEL3_OPS 10
+#define BLIS_NUM_LEVEL3_OPS 12
 
 
 // -- Blocksize ID type --
@@ -980,11 +938,23 @@ typedef enum
 // string array in bli_arch.c. Whenever values are added/inserted
 // OR if values are rearranged, be sure to update the string array
 // in bli_arch.c.
+// This must also be kept up-to-date with the bli_env_get_var_arch_type()
+// function in bli_env.c
 
 typedef enum
 {
+	// NOTE: The C language standard guarantees that the first enum value
+	// starts at 0.
+
+	// Initial value, will be selected for an unrecognized (non-integer)
+	// value of BLIS_ARCH_TYPE
+	BLIS_ARCH_ERROR,
+
+	// Generic architecture/configuration
+	BLIS_ARCH_GENERIC,
+
 	// Intel
-	BLIS_ARCH_SKX = 0,
+	BLIS_ARCH_SKX,
 	BLIS_ARCH_KNL,
 	BLIS_ARCH_KNC,
 	BLIS_ARCH_HASWELL,
@@ -992,6 +962,9 @@ typedef enum
 	BLIS_ARCH_PENRYN,
 
 	// AMD
+	BLIS_ARCH_ZEN5,
+	BLIS_ARCH_ZEN4,
+	BLIS_ARCH_ZEN3,
 	BLIS_ARCH_ZEN2,
 	BLIS_ARCH_ZEN,
 	BLIS_ARCH_EXCAVATOR,
@@ -1000,6 +973,9 @@ typedef enum
 	BLIS_ARCH_BULLDOZER,
 
 	// ARM
+	BLIS_ARCH_ARMSVE,
+	BLIS_ARCH_A64FX,
+	BLIS_ARCH_FIRESTORM,
 	BLIS_ARCH_THUNDERX2,
 	BLIS_ARCH_CORTEXA57,
 	BLIS_ARCH_CORTEXA53,
@@ -1007,28 +983,63 @@ typedef enum
 	BLIS_ARCH_CORTEXA9,
 
 	// IBM/Power
+	BLIS_ARCH_POWER10,
 	BLIS_ARCH_POWER9,
 	BLIS_ARCH_POWER7,
 	BLIS_ARCH_BGQ,
 
-	// Generic architecture/configuration
-	BLIS_ARCH_GENERIC
+	// The total number of defined architectures. This must be last in the
+	// list of enums since its definition assumes that the previous enum
+	// value is given index num_archs-1.
+	BLIS_NUM_ARCHS
 
 } arch_t;
 
-// NOTE: This value must be updated to reflect the number of enum values
-// listed above for arch_t!
-#define BLIS_NUM_ARCHS (BLIS_ARCH_GENERIC+1)
+typedef enum
+{
+	// Initial value, will be selected for an unrecognized (non-integer)
+	// value of BLIS_MODEL_TYPE
+	BLIS_MODEL_ERROR,
 
+	// Default model
+	BLIS_MODEL_DEFAULT,
+
+	// AMD Zen5
+	BLIS_MODEL_TURIN,
+	BLIS_MODEL_TURIN_DENSE,
+
+	// AMD Zen4
+	BLIS_MODEL_GENOA,
+	BLIS_MODEL_BERGAMO,
+	BLIS_MODEL_GENOA_X,
+
+	// AMD Zen3
+	BLIS_MODEL_MILAN,
+	BLIS_MODEL_MILAN_X,
+
+	// The total number of defined models. This must be last in the
+	// list of enums since its definition assumes that the previous enum
+	// value is given index num_models-1.
+	BLIS_NUM_MODELS
+
+} model_t;
 
 //
 // -- BLIS misc. structure types -----------------------------------------------
 //
 
-// These headers must be included here (or earlier) because definitions they
-// provide are needed in the pool_t and related structs.
+// This header must be included here (or earlier) because definitions it
+// provides are needed in the pool_t and related structs.
 #include "bli_pthread.h"
-#include "bli_malloc.h"
+
+// Tiny GEMM ukr info type
+typedef struct
+{
+    void* ukr_fp;            // Generic function pointer for tiny(SUP) kernels
+    bool stor_pref;          // Storage preference of the kernel
+    dim_t MR;                // Blocking dimension MR
+    dim_t NR;                // Blocking dimension NR
+} gemmtiny_ukr_info_t;
 
 // -- Pool block type --
 
@@ -1086,7 +1097,7 @@ typedef struct
 
 // -- packing block allocator: Locked set of pools type --
 
-typedef struct membrk_s
+typedef struct pba_s
 {
 	pool_t              pools[3];
 	bli_pthread_mutex_t mutex;
@@ -1096,7 +1107,7 @@ typedef struct membrk_s
 	malloc_ft           malloc_fp;
 	free_ft             free_fp;
 
-} membrk_t;
+} pba_t;
 
 
 // -- Memory object type --
@@ -1159,7 +1170,7 @@ typedef struct func_s
 
 typedef struct mbool_s
 {
-	bool_t  v[BLIS_NUM_FP_TYPES];
+	bool v[BLIS_NUM_FP_TYPES];
 
 } mbool_t;
 
@@ -1192,9 +1203,6 @@ typedef struct
 	inc_t  ps_a;
 	inc_t  ps_b;
 
-	// The type to convert to on output.
-	//num_t  dt_on_output;
-
 } auxinfo_t;
 
 
@@ -1216,6 +1224,47 @@ typedef struct constdata_s
 //
 // -- BLIS object type definitions ---------------------------------------------
 //
+
+// Forward declarations for function pointer types
+struct obj_s;
+struct cntx_s;
+struct rntm_s;
+struct thrinfo_s;
+
+typedef void (*obj_pack_fn_t)
+    (
+      mdim_t            mat,
+      mem_t*            mem,
+      struct obj_s*     a,
+      struct obj_s*     ap,
+      struct cntx_s*    cntx,
+      struct rntm_s*    rntm,
+      struct thrinfo_s* thread
+    );
+
+typedef void (*obj_ker_fn_t)
+    (
+      struct obj_s*     a,
+      struct obj_s*     b,
+      struct obj_s*     c,
+      struct cntx_s*    cntx,
+      struct rntm_s*    rntm,
+      struct thrinfo_s* thread
+    );
+
+typedef void (*obj_ukr_fn_t)
+    (
+      dim_t                   m,
+      dim_t                   n,
+      dim_t                   k,
+      void*          restrict alpha,
+      void*          restrict a, inc_t rs_a, inc_t cs_a,
+      void*          restrict b, inc_t rs_b, inc_t cs_b,
+      void*          restrict beta,
+      void*          restrict c, inc_t rs_c, inc_t cs_c,
+      auxinfo_t*     restrict data,
+      struct cntx_s* restrict cntx
+    );
 
 typedef struct obj_s
 {
@@ -1246,6 +1295,15 @@ typedef struct obj_s
 	                        // usually MR or NR)
 	dim_t         m_panel;  // m dimension of a "full" panel
 	dim_t         n_panel;  // n dimension of a "full" panel
+
+	// User data pointer
+	void*         user_data;
+
+	// Function pointers
+	obj_pack_fn_t pack;
+	obj_ker_fn_t  ker;
+	obj_ukr_fn_t  ukr;
+
 } obj_t;
 
 // Pre-initializors. Things that must be set afterwards:
@@ -1282,7 +1340,13 @@ typedef struct obj_s
 	.ps        = 0, \
 	.pd        = 0, \
 	.m_panel   = 0, \
-	.n_panel   = 0  \
+	.n_panel   = 0, \
+\
+	.user_data = NULL, \
+\
+	.pack      = NULL, \
+	.ker       = NULL, \
+	.ukr       = NULL  \
 }
 
 #define BLIS_OBJECT_INITIALIZER_1X1 \
@@ -1310,13 +1374,19 @@ typedef struct obj_s
 	.ps        = 0, \
 	.pd        = 0, \
 	.m_panel   = 0, \
-	.n_panel   = 0  \
+	.n_panel   = 0, \
+\
+	.user_data = NULL, \
+\
+	.pack      = NULL, \
+	.ker       = NULL, \
+	.ukr       = NULL  \
 }
 
 // Define these macros here since they must be updated if contents of
 // obj_t changes.
 
-static void bli_obj_init_full_shallow_copy_of( obj_t* a, obj_t* b )
+BLIS_INLINE void bli_obj_init_full_shallow_copy_of( obj_t* a, obj_t* b )
 {
 	b->root      = a->root;
 
@@ -1344,9 +1414,15 @@ static void bli_obj_init_full_shallow_copy_of( obj_t* a, obj_t* b )
 	b->pd        = a->pd;
 	b->m_panel   = a->m_panel;
 	b->n_panel   = a->n_panel;
+
+	b->user_data = a->user_data;
+
+	b->pack      = a->pack;
+	b->ker       = a->ker;
+	b->ukr       = a->ukr;
 }
 
-static void bli_obj_init_subpart_from( obj_t* a, obj_t* b )
+BLIS_INLINE void bli_obj_init_subpart_from( obj_t* a, obj_t* b )
 {
 	b->root      = a->root;
 
@@ -1377,6 +1453,12 @@ static void bli_obj_init_subpart_from( obj_t* a, obj_t* b )
 	b->pd        = a->pd;
 	b->m_panel   = a->m_panel;
 	b->n_panel   = a->n_panel;
+
+	b->user_data = a->user_data;
+
+	b->pack      = a->pack;
+	b->ker       = a->ker;
+	b->ukr       = a->ukr;
 }
 
 // Initializors for global scalar constants.
@@ -1425,12 +1507,16 @@ typedef struct cntx_s
 	func_t    l3_vir_ukrs[ BLIS_NUM_LEVEL3_UKRS ];
 	func_t    l3_nat_ukrs[ BLIS_NUM_LEVEL3_UKRS ];
 	mbool_t   l3_nat_ukrs_prefs[ BLIS_NUM_LEVEL3_UKRS ];
+	void*     l3_thresh_funcs[ BLIS_NUM_LEVEL3_OPS ];
 
 	blksz_t   l3_sup_thresh[ BLIS_NUM_THRESH ];
 	void*     l3_sup_handlers[ BLIS_NUM_LEVEL3_OPS ];
 	blksz_t   l3_sup_blkszs[ BLIS_NUM_BLKSZS ];
+	blksz_t   l3_sup_tri_blkszs[ BLIS_NUM_BLKSZS ];
 	func_t    l3_sup_kers[ BLIS_NUM_3OP_RC_COMBOS ];
+	func_t    l3_sup_tri_kers[ BLIS_NUM_3OP_RC_COMBOS ];
 	mbool_t   l3_sup_kers_prefs[ BLIS_NUM_3OP_RC_COMBOS ];
+	mbool_t   l3_sup_tri_kers_prefs[ BLIS_NUM_3OP_RC_COMBOS ];
 
 	func_t    l1f_kers[ BLIS_NUM_LEVEL1F_KERS ];
 	func_t    l1v_kers[ BLIS_NUM_LEVEL1V_KERS ];
@@ -1439,9 +1525,6 @@ typedef struct cntx_s
 	func_t    unpackm_kers[ BLIS_NUM_UNPACKM_KERS ];
 
 	ind_t     method;
-	pack_t    schema_a_block;
-	pack_t    schema_b_panel;
-	pack_t    schema_c_panel;
 
 } cntx_t;
 
@@ -1451,16 +1534,18 @@ typedef struct cntx_s
 // NOTE: The order of these fields must be kept consistent with the definition
 // of the BLIS_RNTM_INITIALIZER macro in bli_rntm.h.
 
-typedef struct rntm_s
+typedef struct __attribute__((aligned(64))) rntm_s
 {
 	// "External" fields: these may be queried by the end-user.
-	bool_t    auto_factor;
+	bool      auto_factor;
 
 	dim_t     num_threads;
 	dim_t     thrloop[ BLIS_NUM_LOOPS ];
-	bool_t    pack_a; // enable/disable packing of left-hand matrix A.
-	bool_t    pack_b; // enable/disable packing of right-hand matrix B.
-	bool_t    l3_sup; // enable/disable small matrix handling in level-3 ops.
+	bool      pack_a; // enable/disable packing of left-hand matrix A.
+	bool      pack_b; // enable/disable packing of right-hand matrix B.
+	bool      l3_sup; // enable/disable small matrix handling in level-3 ops.
+	                  // blis_mt, flag to figure out whether number of
+	bool      blis_mt;// threads is set using BLIS APIS or OpenMP APIs.
 
 	// "Internal" fields: these should not be exposed to the end-user.
 
@@ -1468,7 +1553,13 @@ typedef struct rntm_s
 	pool_t*   sba_pool;
 
 	// The packing block allocator, which is attached in the l3 thread decorator.
-	membrk_t* membrk;
+	pba_t*    pba;
+
+	// Store values of environment variables to control BLIS version of xerbla
+	// and error code from xerbla
+	bool      stop_on_error;
+	bool      print_on_error;
+	gint_t    info_value;
 
 } rntm_t;
 
@@ -1533,13 +1624,13 @@ typedef enum
 	BLIS_INVALID_COL_STRIDE                    = ( -51),
 	BLIS_INVALID_DIM_STRIDE_COMBINATION        = ( -52),
 
-	// Structure-specific errors    
+	// Structure-specific errors
 	BLIS_EXPECTED_GENERAL_OBJECT               = ( -60),
 	BLIS_EXPECTED_HERMITIAN_OBJECT             = ( -61),
 	BLIS_EXPECTED_SYMMETRIC_OBJECT             = ( -62),
 	BLIS_EXPECTED_TRIANGULAR_OBJECT            = ( -63),
 
-	// Storage-specific errors    
+	// Storage-specific errors
 	BLIS_EXPECTED_UPPER_OR_LOWER_OBJECT        = ( -70),
 
 	// Partitioning-specific errors
@@ -1553,7 +1644,7 @@ typedef enum
 	// Packing-specific errors
 	BLIS_PACK_SCHEMA_NOT_SUPPORTED_FOR_UNPACK  = (-100),
 
-	// Buffer-specific errors 
+	// Buffer-specific errors
 	BLIS_EXPECTED_NONNULL_OBJECT_BUFFER        = (-110),
 
 	// Memory errors
@@ -1571,6 +1662,8 @@ typedef enum
 
 	// Architecture-related errors
 	BLIS_INVALID_ARCH_ID                       = (-150),
+	BLIS_UNINITIALIZED_GKS_CNTX                = (-151),
+	BLIS_INVALID_MODEL_ID                      = (-152),
 
 	// Blocksize-related errors
 	BLIS_MC_DEF_NONMULTIPLE_OF_MR              = (-160),

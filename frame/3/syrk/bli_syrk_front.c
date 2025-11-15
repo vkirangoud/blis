@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2018 - 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -61,15 +61,13 @@ void bli_syrk_front
 	bli_obj_alias_to( a, &at_local );
 	bli_obj_induce_trans( &at_local );
 
+#if 0
 #ifdef BLIS_ENABLE_SMALL_MATRIX
 	gint_t status = bli_syrk_small( alpha, &a_local, &at_local, beta, &c_local,
 	                                cntx, cntl );
 	if ( status == BLIS_SUCCESS ) return;
 #endif
-
-	// Check parameters.
-	if ( bli_error_checking_is_enabled() )
-		bli_syrk_check( alpha, a, beta, c, cntx );
+#endif
 
 	// If alpha is zero, scale by beta and return.
 	if ( bli_obj_equals( alpha, &BLIS_ZERO ) )
@@ -87,6 +85,9 @@ void bli_syrk_front
 		bli_obj_induce_trans( &c_local );
 	}
 
+	// Set the pack schemas within the objects.
+	bli_l3_set_schemas( &a_local, &at_local, &c_local, cntx );
+
 	// Parse and interpret the contents of the rntm_t object to properly
 	// set the ways of parallelism for each loop, and then make any
 	// additional modifications necessary for the current operation.
@@ -99,25 +100,6 @@ void bli_syrk_front
 	  bli_obj_width( &a_local ),
 	  rntm
 	);
-
-	// A sort of hack for communicating the desired pach schemas for A and B
-	// to bli_gemm_cntl_create() (via bli_l3_thread_decorator() and
-	// bli_l3_cntl_create_if()). This allows us to access the schemas from
-	// the control tree, which hopefully reduces some confusion, particularly
-	// in bli_packm_init().
-	if ( bli_cntx_method( cntx ) == BLIS_NAT )
-	{
-		bli_obj_set_pack_schema( BLIS_PACKED_ROW_PANELS, &a_local );
-		bli_obj_set_pack_schema( BLIS_PACKED_COL_PANELS, &at_local );
-	}
-	else // if ( bli_cntx_method( cntx ) != BLIS_NAT )
-	{
-		pack_t schema_a = bli_cntx_schema_a_block( cntx );
-		pack_t schema_b = bli_cntx_schema_b_panel( cntx );
-
-		bli_obj_set_pack_schema( schema_a, &a_local );
-		bli_obj_set_pack_schema( schema_b, &at_local );
-	}
 
 	// Invoke the internal back-end.
 	bli_l3_thread_decorator

@@ -5,6 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
+   Copyright (C) 2020 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -32,14 +33,6 @@
 
 */
 
-// If the CBLAS compatibility layer was enabled while the BLAS layer
-// was not enabled, we must enable it here.
-#ifdef BLIS_ENABLE_CBLAS
-#ifndef BLIS_ENABLE_BLAS
-#define BLIS_ENABLE_BLAS
-#endif
-#endif // BLIS_ENABLE_CBLAS
-
 // By default, if the BLAS compatibility layer is enabled, we define
 // (include) all of the BLAS prototypes. However, if the user is
 // #including "blis.h" and also #including another header that also
@@ -50,6 +43,11 @@
 #else
 #undef  BLIS_ENABLE_BLAS_DEFS
 #endif
+
+// Hack to always enable this, as disabling it is broken in UTA BLIS
+// as well as here.
+#define BLIS_ENABLE_BLAS_DEFS
+
 
 // Skip prototyping all of the BLAS if the BLAS test drivers are being
 // compiled.
@@ -62,6 +60,9 @@
 #ifdef BLIS_DISABLE_BLAS_DEFS
 #undef BLIS_ENABLE_BLAS_DEFS
 #endif
+
+
+
 
 // Begin including all BLAS prototypes.
 #ifdef BLIS_ENABLE_BLAS_DEFS
@@ -102,16 +103,12 @@
 #include "bla_xerbla_array.h"
 
 
-// -- Level-0 BLAS prototypes --
-
-#include "bla_cabs1.h"
-
-
 // -- Level-1 BLAS prototypes --
 
 #include "bla_amax.h"
 #include "bla_asum.h"
 #include "bla_axpy.h"
+#include "bla_axpby.h"
 #include "bla_copy.h"
 #include "bla_dot.h"
 #include "bla_nrm2.h"
@@ -185,6 +182,8 @@
 #include "bla_syr2k.h"
 #include "bla_trmm.h"
 #include "bla_trsm.h"
+#include "bla_gemmt.h"
+#include "bla_gemm_compute.h"
 
 #include "bla_gemm_check.h"
 #include "bla_hemm_check.h"
@@ -195,10 +194,32 @@
 #include "bla_syr2k_check.h"
 #include "bla_trmm_check.h"
 #include "bla_trsm_check.h"
+#include "bla_gemmt_check.h"
+#include "bla_gemm_pack_compute_check.h"
+
+// -- Batch Extension prototypes --
+#include "bla_gemm_batch.h"
+#include "bla_gemm3m.h"
+#include "bla_gemm3m_check.h"
+#include "bla_gemm_pack_get_size.h"
+#include "bla_gemm_pack.h"
+
+// -- Transpose and Copy Routines --
+#include "bla_omatadd.h"
+#include "bla_omatcopy.h"
+#include "bla_omatcopy2.h"
+#include "bla_imatcopy.h"
 
 // -- Fortran-compatible APIs to BLIS functions --
-
+#ifndef _WIN32
 #include "b77_thread.h"
+#endif
+
+// -- Auxiliary Routines --
+
+#include "bla_cabs1.h"
+#include "bla_amin.h"
+#include "f77_amin_sub.h"
 
 
-#endif // BLIS_ENABLE_BLAS
+#endif // BLIS_ENABLE_BLAS_DEFS

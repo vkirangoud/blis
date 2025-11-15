@@ -6,7 +6,7 @@
 
    Copyright (C) 2014, The University of Texas at Austin
    Copyright (C) 2016, Hewlett Packard Enterprise Development LP
-   Copyright (C) 2018 - 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -61,40 +61,40 @@ typedef struct
 // -- mem_t query --------------------------------------------------------------
 //
 
-static pblk_t* bli_mem_pblk( mem_t* mem )
+BLIS_INLINE pblk_t* bli_mem_pblk( mem_t* mem )
 {
 	return &(mem->pblk);
 }
 
-static void* bli_mem_buffer( mem_t* mem )
+BLIS_INLINE void* bli_mem_buffer( mem_t* mem )
 {
 	return bli_pblk_buf( bli_mem_pblk( mem ) );
 }
 
-static packbuf_t bli_mem_buf_type( mem_t* mem )
+BLIS_INLINE packbuf_t bli_mem_buf_type( mem_t* mem )
 {
 	return mem->buf_type;
 }
 
-static pool_t* bli_mem_pool( mem_t* mem )
+BLIS_INLINE pool_t* bli_mem_pool( mem_t* mem )
 {
 	return mem->pool;
 }
 
-static siz_t bli_mem_size( mem_t* mem )
+BLIS_INLINE siz_t bli_mem_size( mem_t* mem )
 {
 	return mem->size;
 }
 
-static bool_t bli_mem_is_alloc( mem_t* mem )
+BLIS_INLINE bool bli_mem_is_alloc( mem_t* mem )
 {
-	return ( bool_t )
+	return ( bool )
 	       ( bli_mem_buffer( mem ) != NULL );
 }
 
-static bool_t bli_mem_is_unalloc( mem_t* mem )
+BLIS_INLINE bool bli_mem_is_unalloc( mem_t* mem )
 {
-	return ( bool_t )
+	return ( bool )
 	       ( bli_mem_buffer( mem ) == NULL );
 }
 
@@ -103,27 +103,27 @@ static bool_t bli_mem_is_unalloc( mem_t* mem )
 // -- mem_t modification -------------------------------------------------------
 //
 
-static void bli_mem_set_pblk( pblk_t* pblk, mem_t* mem )
+BLIS_INLINE void bli_mem_set_pblk( pblk_t* pblk, mem_t* mem )
 {
 	mem->pblk = *pblk;
 }
 
-static void bli_mem_set_buffer( void* buf, mem_t* mem )
+BLIS_INLINE void bli_mem_set_buffer( void* buf, mem_t* mem )
 {
 	bli_pblk_set_buf( buf, &(mem->pblk) );
 }
 
-static void bli_mem_set_buf_type( packbuf_t buf_type, mem_t* mem )
+BLIS_INLINE void bli_mem_set_buf_type( packbuf_t buf_type, mem_t* mem )
 {
 	mem->buf_type = buf_type;
 }
 
-static void bli_mem_set_pool( pool_t* pool, mem_t* mem )
+BLIS_INLINE void bli_mem_set_pool( pool_t* pool, mem_t* mem )
 {
 	mem->pool = pool;
 }
 
-static void bli_mem_set_size( siz_t size, mem_t* mem )
+BLIS_INLINE void bli_mem_set_size( siz_t size, mem_t* mem )
 {
 	mem->size = size;
 }
@@ -144,14 +144,14 @@ static void bli_mem_set_size( siz_t size, mem_t* mem )
           .size        = 0, \
         }  \
 
-static void bli_mem_clear( mem_t* mem )
+BLIS_INLINE void bli_mem_clear( mem_t* mem )
 {
 	bli_mem_set_buffer( NULL, mem );
 #ifdef __cplusplus
-	packbuf_t pb;
-	//C++ has more strong type checking. Using -1 will result in error
-	//Pass actual type instead
-	bli_mem_set_buf_type ( pb, mem );
+	const packbuf_t pb = BLIS_BUFFER_FOR_GEN_USE;
+	// When using C++, which is strongly typed, we avoid use of -1 as a
+	// packbuf_t value since it will result in a compile-time error.
+	bli_mem_set_buf_type( pb, mem );
 #else
 	bli_mem_set_buf_type( ( packbuf_t )-1, mem );
 #endif

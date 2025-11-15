@@ -6,7 +6,7 @@
 
    Copyright (C) 2014, The University of Texas at Austin
    Copyright (C) 2016, Hewlett Packard Enterprise Development LP
-   Copyright (C) 2018 - 2020, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2024, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -47,16 +47,26 @@ extern "C" {
 
 // NOTE: PLEASE DON'T CHANGE THE ORDER IN WHICH HEADERS ARE INCLUDED UNLESS
 // YOU ARE SURE THAT IT DOESN'T BREAK INTER-HEADER MACRO DEPENDENCIES.
-
-// -- System headers --
-// NOTE: This header must be included before bli_config_macro_defs.h.
-
-#include "bli_system.h"
-
+// ALSO REMEMBER TO UPDATE ./frame/compat/cblas/src/cblas.h APPROPRIATELY
 
 // -- configure definitions --
 
+// NOTE: bli_config.h header must be included before any BLIS header.
+// It is bootstrapped by ./configure and does not depend on later
+// headers. Moreover, these configuration variables are necessary to change
+// some default behaviors (e.g. disable OS-detection in bli_system.h in case
+// of --disable-system).
 #include "bli_config.h"
+
+// -- System and language-related headers --
+
+// NOTE: bli_system.h header must be included before bli_config_macro_defs.h.
+#include "bli_system.h"
+#include "bli_lang_defs.h"
+
+
+// -- configure default definitions --
+
 #include "bli_config_macro_defs.h"
 
 
@@ -100,6 +110,7 @@ extern "C" {
 // -- Base operation prototypes --
 
 #include "bli_init.h"
+#include "bli_malloc.h"
 #include "bli_const.h"
 #include "bli_obj.h"
 #include "bli_obj_scalar.h"
@@ -110,7 +121,7 @@ extern "C" {
 #include "bli_rntm.h"
 #include "bli_gks.h"
 #include "bli_ind.h"
-#include "bli_membrk.h"
+#include "bli_pba.h"
 #include "bli_pool.h"
 #include "bli_array.h"
 #include "bli_apool.h"
@@ -136,7 +147,8 @@ extern "C" {
 #include "bli_arch.h"
 #include "bli_cpuid.h"
 #include "bli_string.h"
-#include "bli_setgetij.h"
+#include "bli_setgetijm.h"
+#include "bli_setgetijv.h"
 #include "bli_setri.h"
 
 #include "bli_castm.h"
@@ -184,6 +196,11 @@ extern "C" {
 // -- Utility operations --
 
 #include "bli_util.h"
+
+
+// -- addon definitions --
+
+#include "bli_addon.h"
 
 
 // -- sandbox implementation --

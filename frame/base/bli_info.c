@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2018 - 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -35,6 +35,9 @@
 
 #include "blis.h"
 
+// Make thread settings local to each thread calling BLIS routines.
+// (The definition resides in bli_rntm.c.)
+extern BLIS_THREAD_LOCAL rntm_t tl_rntm;
 
 // -- General library information ----------------------------------------------
 
@@ -69,14 +72,6 @@ gint_t bli_info_get_pool_addr_offset_size_a( void )   { return BLIS_POOL_ADDR_OF
 gint_t bli_info_get_pool_addr_offset_size_b( void )   { return BLIS_POOL_ADDR_OFFSET_SIZE_B; }
 gint_t bli_info_get_pool_addr_offset_size_c( void )   { return BLIS_POOL_ADDR_OFFSET_SIZE_C; }
 gint_t bli_info_get_pool_addr_offset_size_gen( void ) { return BLIS_POOL_ADDR_OFFSET_SIZE_GEN; }
-gint_t bli_info_get_enable_stay_auto_init( void )
-{
-#ifdef BLIS_ENABLE_STAY_AUTO_INITIALIZED
-	return 1;
-#else
-	return 0;
-#endif
-}
 gint_t bli_info_get_enable_blas( void )
 {
 #ifdef BLIS_ENABLE_BLAS
@@ -165,6 +160,11 @@ gint_t bli_info_get_enable_sandbox( void )
 #endif
 }
 
+// -- Error code produced from within xerbla (if called), otherwise 0
+gint_t bli_info_get_info_value( void )
+{
+	return tl_rntm.info_value;
+}
 
 
 // -- Kernel implementation-related --------------------------------------------

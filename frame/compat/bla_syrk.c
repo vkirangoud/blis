@@ -4,8 +4,8 @@
    An object-based framework for developing high-performance BLAS-like
    libraries.
 
-   Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2014, The University of Texas at Austin.
+   Copyright (C) 2019 - 2024, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -40,12 +40,29 @@
 // Define BLAS-to-BLIS interfaces.
 //
 
+#if defined(BLIS_KERNELS_ZEN4)
+
+    #define SYRK_BLIS_IMPL(ch, blasname) \
+        PASTEF77S(ch,blasname) ( uploc, transa, m, k, alpha, a, lda, beta, c, ldc ); \
+        arch_t id = bli_arch_query_id(); \
+        if (id == BLIS_ARCH_ZEN5 || id == BLIS_ARCH_ZEN4) \
+        { \
+            bli_zero_zmm(); \
+        } \
+
+#else
+
+    #define SYRK_BLIS_IMPL(ch, blasname) \
+        PASTEF77S(ch,blasname) ( uploc, transa, m, k, alpha, a, lda, beta, c, ldc ); \
+
+#endif
+
 #ifdef BLIS_BLAS3_CALLS_TAPI
 
 #undef  GENTFUNC
 #define GENTFUNC( ftype, ch, blasname, blisname ) \
 \
-void PASTEF77(ch,blasname) \
+void PASTEF77S(ch,blasname) \
      ( \
        const f77_char* uploc, \
        const f77_char* transa, \
@@ -57,6 +74,9 @@ void PASTEF77(ch,blasname) \
              ftype*    c, const f77_int* ldc  \
      ) \
 { \
+	AOCL_DTL_TRACE_ENTRY(AOCL_DTL_LEVEL_TRACE_1) \
+	AOCL_DTL_LOG_SYRK_INPUTS(AOCL_DTL_LEVEL_TRACE_1, *MKSTR(ch), *uploc,\
+			 *transa, *m, *k, *alpha, *lda, (void*)beta, *ldc) \
 	uplo_t  blis_uploc; \
 	trans_t blis_transa; \
 	dim_t   m0, k0; \
@@ -78,6 +98,16 @@ void PASTEF77(ch,blasname) \
 	  lda, \
 	  ldc  \
 	); \
+\
+	/* Quick return if possible. */ \
+	if ( *m == 0 || (( PASTEMAC(ch,eq0)( *alpha ) || *k == 0) \
+	   && PASTEMAC(ch,eq1)( *beta ) )) \
+	{ \
+	  AOCL_DTL_TRACE_EXIT(AOCL_DTL_LEVEL_TRACE_1); \
+	  /* Finalize BLIS. */ \
+	  bli_finalize_auto(); \
+	  return; \
+	} \
 \
 	/* Map BLAS chars to their corresponding BLIS enumerated type value. */ \
 	bli_param_map_netlib_to_blis_uplo( *uploc, &blis_uploc ); \
@@ -102,6 +132,25 @@ void PASTEF77(ch,blasname) \
 	rs_c = 1; \
 	cs_c = *ldc; \
 \
+	/* If alpha is zero, scale C by beta and return early */ \
+	if( PASTEMAC(ch,eq0)( *alpha ) ) \
+	{ \
+		PASTEMAC2(ch,scalm,_ex)( BLIS_NO_CONJUGATE, \
+								  0, \
+								  BLIS_NONUNIT_DIAG, \
+								  blis_uploc, \
+								  m0, \
+								  m0, \
+								  (ftype*) beta, \
+								  (ftype*) c, rs_c, cs_c, \
+								  NULL, NULL \
+								); \
+		/* Finalize BLIS. */ \
+		AOCL_DTL_TRACE_EXIT(AOCL_DTL_LEVEL_TRACE_1) \
+		bli_finalize_auto(); \
+		return; \
+	} \
+\
 	/* Call BLIS interface. */ \
 	PASTEMAC2(ch,blisname,BLIS_TAPI_EX_SUF) \
 	( \
@@ -118,14 +167,10 @@ void PASTEF77(ch,blasname) \
 	); \
 \
 	/* Finalize BLIS. */ \
+	AOCL_DTL_TRACE_EXIT(AOCL_DTL_LEVEL_TRACE_1) \
 	bli_finalize_auto(); \
-}
-
-#else
-
-#undef  GENTFUNC
-#define GENTFUNC( ftype, ch, blasname, blisname ) \
-\
+} \
+IF_BLIS_ENABLE_BLAS(\
 void PASTEF77(ch,blasname) \
      ( \
        const f77_char* uploc, \
@@ -138,6 +183,30 @@ void PASTEF77(ch,blasname) \
              ftype*    c, const f77_int* ldc  \
      ) \
 { \
+	SYRK_BLIS_IMPL(ch,blasname) \
+} \
+)
+
+#else
+
+#undef  GENTFUNC
+#define GENTFUNC( ftype, ch, blasname, blisname ) \
+\
+void PASTEF77S(ch,blasname) \
+     ( \
+       const f77_char* uploc, \
+       const f77_char* transa, \
+       const f77_int*  m, \
+       const f77_int*  k, \
+       const ftype*    alpha, \
+       const ftype*    a, const f77_int* lda, \
+       const ftype*    beta, \
+             ftype*    c, const f77_int* ldc  \
+     ) \
+{ \
+	AOCL_DTL_TRACE_ENTRY(AOCL_DTL_LEVEL_TRACE_1) \
+	AOCL_DTL_LOG_SYRK_INPUTS(AOCL_DTL_LEVEL_TRACE_1, *MKSTR(ch), *uploc,\
+			 *transa, *m, *k, (void*)alpha, *lda, (void*)beta, *ldc) \
 	uplo_t  blis_uploc; \
 	trans_t blis_transa; \
 	dim_t   m0, k0; \
@@ -157,6 +226,16 @@ void PASTEF77(ch,blasname) \
 	  lda, \
 	  ldc  \
 	); \
+\
+	/* Quick return if possible. */ \
+	if ( *m == 0 || (( PASTEMAC(ch,eq0)( *alpha ) || *k == 0) \
+	   && PASTEMAC(ch,eq1)( *beta ) )) \
+	{ \
+	  AOCL_DTL_TRACE_EXIT(AOCL_DTL_LEVEL_TRACE_1); \
+	  /* Finalize BLIS. */ \
+	  bli_finalize_auto(); \
+	  return; \
+	} \
 \
 	/* Map BLAS chars to their corresponding BLIS enumerated type value. */ \
 	bli_param_map_netlib_to_blis_uplo( *uploc, &blis_uploc ); \
@@ -180,6 +259,25 @@ void PASTEF77(ch,blasname) \
 	const inc_t cs_a = *lda; \
 	const inc_t rs_c = 1; \
 	const inc_t cs_c = *ldc; \
+\
+	/* If alpha is zero, scale C by beta and return early */ \
+	if( PASTEMAC(ch,eq0)( *alpha ) ) \
+	{ \
+		PASTEMAC2(ch,scalm,_ex)( BLIS_NO_CONJUGATE, \
+								  0, \
+								  BLIS_NONUNIT_DIAG, \
+								  blis_uploc, \
+								  m0, \
+								  m0, \
+								  (ftype*) beta, \
+								  (ftype*) c, rs_c, cs_c, \
+								  NULL, NULL \
+								); \
+		/* Finalize BLIS. */ \
+		AOCL_DTL_TRACE_EXIT(AOCL_DTL_LEVEL_TRACE_1) \
+		bli_finalize_auto(); \
+		return; \
+	} \
 \
 	const num_t   dt     = PASTEMAC(ch,type); \
 \
@@ -216,12 +314,27 @@ void PASTEF77(ch,blasname) \
 	); \
 \
 	/* Finalize BLIS. */ \
+	AOCL_DTL_TRACE_EXIT(AOCL_DTL_LEVEL_TRACE_1) \
 	bli_finalize_auto(); \
-}
+} \
+IF_BLIS_ENABLE_BLAS(\
+void PASTEF77(ch,blasname) \
+     ( \
+       const f77_char* uploc, \
+       const f77_char* transa, \
+       const f77_int*  m, \
+       const f77_int*  k, \
+       const ftype*    alpha, \
+       const ftype*    a, const f77_int* lda, \
+       const ftype*    beta, \
+             ftype*    c, const f77_int* ldc  \
+     ) \
+{ \
+	SYRK_BLIS_IMPL(ch,blasname) \
+} \
+)
 
 #endif
 
-#ifdef BLIS_ENABLE_BLAS
 INSERT_GENTFUNC_BLAS( syrk, syrk )
-#endif
 

@@ -1,10 +1,10 @@
 #
 #
-#  BLIS    
+#  BLIS
 #  An object-based framework for developing high-performance BLAS-like
 #  libraries.
 #
-#  Copyright (C) 2019, Advanced Micro Devices, Inc.
+#  Copyright (C) 2021 - 2024, Advanced Micro Devices, Inc. All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
 #  modification, are permitted provided that the following conditions are
@@ -49,17 +49,19 @@ endif
 ifeq ($(DEBUG_TYPE),noopt)
 COPTFLAGS      := -O0
 else
-COPTFLAGS      := -O3 -fomit-frame-pointer
+COPTFLAGS      := -O2 -fomit-frame-pointer
 endif
 
 # Flags specific to optimized kernels.
-CKOPTFLAGS     := $(COPTFLAGS)
+# NOTE: The -fomit-frame-pointer option is needed for some kernels because
+# they make explicit use of the rbp register.
+CKOPTFLAGS     := $(COPTFLAGS) -O3
 ifeq ($(CC_VENDOR),gcc)
 CKVECFLAGS     := -mavx2 -mfpmath=sse -mfma
 else
 ifeq ($(CC_VENDOR),clang)
 CKVECFLAGS     := -mavx2 -mfpmath=sse -mfma -mno-fma4 -mno-tbm -mno-xop -mno-lwp
-ifeq ($(strip $(shell clang -v |&head -1 |grep -c 'AOCC.LLVM')),1)
+ifeq ($(strip $(shell $(CC) -v |&head -1 |grep -c 'AOCC.LLVM')),1)
 CKVECFLAGS += -mllvm -disable-licm-vrp
 endif
 else

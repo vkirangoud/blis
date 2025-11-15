@@ -4,7 +4,7 @@
    An object-based framework for developing high-performance BLAS-like
    libraries.
 
-   Copyright (C) 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2019 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -94,8 +94,8 @@ INSERT_GENTPROT_BASIC0( gemmsup_ref_var2 )
 \
 void PASTEMAC(ch,varname) \
      ( \
-       bool_t           packa, \
-       bool_t           packb, \
+       bool             packa, \
+       bool             packb, \
        conj_t           conja, \
        conj_t           conjb, \
        dim_t            m, \
@@ -117,17 +117,17 @@ INSERT_GENTPROT_BASIC0( gemmsup_ref_var2m )
 
 // -----------------------------------------------------------------------------
 
-static void bli_gemmsup_ref_var1n2m_opt_cases
+BLIS_INLINE void bli_gemmsup_ref_var1n2m_opt_cases
      (
        num_t    dt,
        trans_t* trans,
-       bool_t   packa,
-       bool_t   packb,
+       bool     packa,
+       bool     packb,
        stor3_t* eff_id,
        cntx_t*  cntx
      )
 {
-	const bool_t row_pref = bli_cntx_l3_sup_ker_prefers_rows_dt( dt, *eff_id, cntx );
+	const bool row_pref = bli_cntx_l3_sup_ker_prefers_rows_dt( dt, *eff_id, cntx );
 
 	// Handle row- and column-preferrential kernels separately.
 	if ( row_pref )
@@ -198,9 +198,28 @@ static void bli_gemmsup_ref_var1n2m_opt_cases
 	}
 	else
 	{
-		//bli_check_error_code( BLIS_NOT_YET_IMPLEMENTED );
-		printf( "libblis: sup var1n2m_opt_cases not yet implemented for column-preferential kernels.\n" );
-		bli_abort();
+		if ( ( dt == BLIS_DOUBLE ) || ( dt == BLIS_DCOMPLEX ) )
+		{
+			// The optimizations are only done for CRC and RRC storage schemes to avoid RD kernels.
+			// Optimizations for other storage schemes is yet to be done.
+			if ( packa )
+			{
+				if( *eff_id == BLIS_CRC )
+				{
+					*eff_id = BLIS_CCC;
+				}
+				else if ( *eff_id == BLIS_RRC )
+				{
+					*trans = bli_trans_toggled( *trans );
+					*eff_id = BLIS_RCC;
+				}
+			}
+		}
+		else
+		{
+			printf( "libblis: sup var1n2m_opt_cases not yet implemented for column-preferential kernels for S, C and Z datatypes.\n" );
+			bli_abort();
+		}
 	}
 }
 

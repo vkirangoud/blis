@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2020, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -42,6 +42,54 @@
 #undef  GENTFUNCDOT
 #define GENTFUNCDOT( ftype, ch, chc, blis_conjx, blasname, blisname ) \
 \
+ftype PASTEF772S(ch,blasname,chc) \
+     ( \
+       const f77_int* n, \
+       const ftype*   x, const f77_int* incx, \
+       const ftype*   y, const f77_int* incy  \
+     ) \
+{ \
+    AOCL_DTL_TRACE_ENTRY(AOCL_DTL_LEVEL_TRACE_1); \
+    AOCL_DTL_LOG_DOTV_INPUTS(AOCL_DTL_LEVEL_TRACE_1, *MKSTR(ch), *MKSTR(blis_conjx), *n, *incx, *incy); \
+    dim_t  n0; \
+    ftype* x0; \
+    ftype* y0; \
+    inc_t  incx0; \
+    inc_t  incy0; \
+    ftype  rho; \
+\
+    /* Initialize BLIS. */ \
+    bli_init_auto(); \
+\
+    /* Convert/typecast negative values of n to zero. */ \
+    bli_convert_blas_dim1( *n, n0 ); \
+\
+    /* If the input increments are negative, adjust the pointers so we can
+       use positive increments instead. */ \
+    bli_convert_blas_incv( n0, (ftype*)x, *incx, x0, incx0 ); \
+    bli_convert_blas_incv( n0, (ftype*)y, *incy, y0, incy0 ); \
+\
+    /* Call BLIS interface. */ \
+    PASTEMAC2(ch,blisname,BLIS_TAPI_EX_SUF) \
+    ( \
+      blis_conjx, \
+      BLIS_NO_CONJUGATE, \
+      n0, \
+      x0, incx0, \
+      y0, incy0, \
+      &rho, \
+      NULL, \
+      NULL  \
+    ); \
+\
+    AOCL_DTL_TRACE_EXIT(AOCL_DTL_LEVEL_TRACE_1); \
+    /* Finalize BLIS. */ \
+    bli_finalize_auto(); \
+\
+    return rho; \
+}\
+\
+IF_BLIS_ENABLE_BLAS(\
 ftype PASTEF772(ch,blasname,chc) \
      ( \
        const f77_int* n, \
@@ -49,213 +97,108 @@ ftype PASTEF772(ch,blasname,chc) \
        const ftype*   y, const f77_int* incy  \
      ) \
 { \
-	dim_t  n0; \
-	ftype* x0; \
-	ftype* y0; \
-	inc_t  incx0; \
-	inc_t  incy0; \
-	ftype  rho; \
-\
-	/* Initialize BLIS. */ \
-	bli_init_auto(); \
-\
-	/* Convert/typecast negative values of n to zero. */ \
-	bli_convert_blas_dim1( *n, n0 ); \
-\
-	/* If the input increments are negative, adjust the pointers so we can
-	   use positive increments instead. */ \
-	bli_convert_blas_incv( n0, (ftype*)x, *incx, x0, incx0 ); \
-	bli_convert_blas_incv( n0, (ftype*)y, *incy, y0, incy0 ); \
-\
-	/* Call BLIS interface. */ \
-	PASTEMAC2(ch,blisname,BLIS_TAPI_EX_SUF) \
-	( \
-	  blis_conjx, \
-	  BLIS_NO_CONJUGATE, \
-	  n0, \
-	  x0, incx0, \
-	  y0, incy0, \
-	  &rho, \
-	  NULL, \
-	  NULL  \
-	); \
-\
-	/* Finalize BLIS. */ \
-	bli_finalize_auto(); \
-\
-	return rho; \
-}
+  return PASTEF772S(ch,blasname,chc)( n, x, incx, y, incy );\
+} \
+)
 
-#ifdef BLIS_ENABLE_BLAS
-#ifdef BLIS_CONFIG_ZEN2
+INSERT_GENTFUNCDOTR_BLAS( dot, dotv )
 
-float sdot_
-     (
-       const f77_int* n,
-       const float*   x, const f77_int* incx,
-       const float*   y, const f77_int* incy
-     )
-{
-    dim_t  n0;
-    float* x0;
-    float* y0;
-    inc_t  incx0;
-    inc_t  incy0;
-    float  rho;
-
-    /* Initialize BLIS. */
-//  bli_init_auto();
-
-    /* Convert/typecast negative values of n to zero. */
-    if ( *n < 0 ) n0 = ( dim_t )0;
-    else              n0 = ( dim_t )(*n);
-
-	/* If the input increments are negative, adjust the pointers so we can
-	   use positive increments instead. */ 
-
-    if ( *incx < 0 )
-    {
-        /* The semantics of negative stride in BLAS are that the vector
-        operand be traversed in reverse order. (Another way to think
-        of this is that negative strides effectively reverse the order
-        of the vector, but without any explicit data movements.) This
-        is also how BLIS interprets negative strides. The differences
-        is that with BLAS, the caller *always* passes in the 0th (i.e.,
-        top-most or left-most) element of the vector, even when the
-        stride is negative. By contrast, in BLIS, negative strides are
-        used *relative* to the vector address as it is given. Thus, in
-        BLIS, if this backwards traversal is desired, the caller *must*
-        pass in the address to the (n-1)th (i.e., the bottom-most or
-        right-most) element along with a negative stride. */
-
-        x0    = ((float*)x) + (n0-1)*(-*incx);
-        incx0 = ( inc_t )(*incx);
-
-    }
-    else
-    {
-        x0    = ((float*)x);
-        incx0 = ( inc_t )(*incx);
-    }
-
-    if ( *incy < 0 )
-    {
-        y0    = ((float*)y) + (n0-1)*(-*incy);
-        incy0 = ( inc_t )(*incy);
-
-    }
-    else
-    {
-        y0    = ((float*)y);
-        incy0 = ( inc_t )(*incy);
-    }
-
-	/* Call BLIS kernel. */
-	bli_sdotv_zen_int10
-	(
-	  BLIS_NO_CONJUGATE,
-	  BLIS_NO_CONJUGATE,
-	  n0,
-	  x0, incx0,
-	  y0, incy0,
-	  &rho,
-	  NULL
-	);
-
-	/* Finalize BLIS. */
-//	bli_finalize_auto();
-
-	return rho;
-}
-
-double ddot_
-     (
-       const f77_int* n,
-       const double*   x, const f77_int* incx,
-       const double*   y, const f77_int* incy
-     )
-{
-	dim_t  n0;
-	double* x0;
-	double* y0;
-	inc_t  incx0;
-	inc_t  incy0;
-	double  rho;
-
-	/* Initialize BLIS. */
-//	bli_init_auto();
-
-	/* Convert/typecast negative values of n to zero. */
-    if ( *n < 0 ) n0 = ( dim_t )0;
-    else              n0 = ( dim_t )(*n);
-
-	/* If the input increments are negative, adjust the pointers so we can
-	   use positive increments instead. */ 
-
-    if ( *incx < 0 )
-    {
-        /* The semantics of negative stride in BLAS are that the vector
-        operand be traversed in reverse order. (Another way to think
-        of this is that negative strides effectively reverse the order
-        of the vector, but without any explicit data movements.) This
-        is also how BLIS interprets negative strides. The differences
-        is that with BLAS, the caller *always* passes in the 0th (i.e.,
-        top-most or left-most) element of the vector, even when the
-        stride is negative. By contrast, in BLIS, negative strides are
-        used *relative* to the vector address as it is given. Thus, in
-        BLIS, if this backwards traversal is desired, the caller *must*
-        pass in the address to the (n-1)th (i.e., the bottom-most or
-        right-most) element along with a negative stride. */
-
-        x0    = ((double*)x) + (n0-1)*(-*incx);
-        incx0 = ( inc_t )(*incx);
-
-    }
-    else
-    {
-        x0    = ((double*)x);
-        incx0 = ( inc_t )(*incx);
-    }
-
-    if ( *incy < 0 )
-    {
-        y0    = ((double*)y) + (n0-1)*(-*incy);
-        incy0 = ( inc_t )(*incy);
-
-    }
-    else
-    {
-        y0    = ((double*)y);
-        incy0 = ( inc_t )(*incy);
-    }
-
-	/* Call BLIS kernel. */
-	bli_ddotv_zen_int10
-	(
-	  BLIS_NO_CONJUGATE,
-	  BLIS_NO_CONJUGATE,
-	  n0,
-	  x0, incx0,
-	  y0, incy0,
-	  &rho,
-	  NULL
-	);
-
-	/* Finalize BLIS. */
-//	bli_finalize_auto();
-
-	return rho;
-}
-
-INSERT_GENTFUNCDOT_BLAS_CZ( dot, dotv )
+#ifdef BLIS_DISABLE_COMPLEX_RETURN_INTEL
+INSERT_GENTFUNCDOTC_BLAS( dot, dotv )
 #else
-INSERT_GENTFUNCDOT_BLAS( dot, dotv )
-#endif
+// For the "intel" complex return type, use a hidden parameter to return the result
+#undef  GENTFUNCDOT
+#define GENTFUNCDOT( ftype, ch, chc, blis_conjx, blasname, blisname ) \
+\
+void PASTEF772S(ch,blasname,chc) \
+     ( \
+       ftype*         rhop, \
+       const f77_int* n, \
+       const ftype*   x, const f77_int* incx, \
+       const ftype*   y, const f77_int* incy  \
+     ) \
+{ \
+  AOCL_DTL_TRACE_ENTRY(AOCL_DTL_LEVEL_TRACE_1); \
+  AOCL_DTL_LOG_DOTV_INPUTS(AOCL_DTL_LEVEL_TRACE_1, *MKSTR(ch), *MKSTR(blis_conjx), *n, *incx, *incy); \
+        dim_t  n0; \
+        ftype* x0; \
+        ftype* y0; \
+        inc_t  incx0; \
+        inc_t  incy0; \
+        ftype  rho; \
+\
+        /* Initialize BLIS. */ \
+        bli_init_auto(); \
+\
+        /* Convert/typecast negative values of n to zero. */ \
+        bli_convert_blas_dim1( *n, n0 ); \
+\
+        /* If the input increments are negative, adjust the pointers so we can
+           use positive increments instead. */ \
+        bli_convert_blas_incv( n0, (ftype*)x, *incx, x0, incx0 ); \
+        bli_convert_blas_incv( n0, (ftype*)y, *incy, y0, incy0 ); \
+\
+        /* Call BLIS interface. */ \
+        PASTEMAC2(ch,blisname,BLIS_TAPI_EX_SUF) \
+        ( \
+          blis_conjx, \
+          BLIS_NO_CONJUGATE, \
+          n0, \
+          x0, incx0, \
+          y0, incy0, \
+          &rho, \
+          NULL, \
+          NULL  \
+        ); \
+\
+        /* Finalize BLIS. */ \
+        AOCL_DTL_TRACE_EXIT(AOCL_DTL_LEVEL_TRACE_1); \
+        bli_finalize_auto(); \
+\
+        *rhop = rho; \
+}\
+\
+IF_BLIS_ENABLE_BLAS(\
+void PASTEF772(ch,blasname,chc) \
+     ( \
+       ftype*         rhop, \
+       const f77_int* n, \
+       const ftype*   x, const f77_int* incx, \
+       const ftype*   y, const f77_int* incy  \
+     ) \
+{ \
+  PASTEF772S(ch,blasname,chc)( rhop, n, x, incx, y, incy );\
+} \
+)
+
+INSERT_GENTFUNCDOTC_BLAS( dot, dotv )
+#endif // BLIS_DISABLE_COMPLEX_RETURN_INTEL
+
 
 // -- "Black sheep" dot product function definitions --
 
 // Input vectors stored in single precision, computed in double precision,
 // with result returned in single precision.
+float PASTEF77S(sd,sdot)
+     (
+       const f77_int* n,
+       const float*   sb,
+       const float*   x, const f77_int* incx,
+       const float*   y, const f77_int* incy
+     )
+{
+    return ( float )
+           (
+             ( double )(*sb) +
+             PASTEF77(d,sdot)
+             (
+               n,
+               x, incx,
+               y, incy
+             )
+           );
+}
+#ifdef BLIS_ENABLE_BLAS
 float PASTEF77(sd,sdot)
      (
        const f77_int* n,
@@ -264,20 +207,57 @@ float PASTEF77(sd,sdot)
        const float*   y, const f77_int* incy
      )
 {
-	return ( float )
-	       (
-	         ( double )(*sb) +
-	         PASTEF77(d,sdot)
-	         (
-	           n,
-	           x, incx,
-	           y, incy
-	         )
-	       );
+  return PASTEF77S(sd,sdot)( n, sb, x, incx, y, incy );
 }
+#endif // BLIS_ENABLE_BLAS
 
 // Input vectors stored in single precision, computed in double precision,
 // with result returned in double precision.
+double PASTEF77S(d,sdot)
+     (
+       const f77_int* n,
+       const float*   x, const f77_int* incx,
+       const float*   y, const f77_int* incy
+     )
+{
+    dim_t   n0;
+    float*  x0;
+    float*  y0;
+    inc_t   incx0;
+    inc_t   incy0;
+    double  rho;
+    dim_t   i;
+
+    AOCL_DTL_TRACE_ENTRY(AOCL_DTL_LEVEL_TRACE_1);
+    AOCL_DTL_LOG_DOTV_INPUTS(AOCL_DTL_LEVEL_TRACE_1, 'D', 'N', *n, *incx, *incy);
+    /* Initialization of BLIS is not required. */
+
+    /* Convert/typecast negative values of n to zero. */
+    bli_convert_blas_dim1( *n, n0 );
+
+    /* If the input increments are negative, adjust the pointers so we can
+       use positive increments instead. */
+    bli_convert_blas_incv( n0, (float*)x, *incx, x0, incx0 );
+    bli_convert_blas_incv( n0, (float*)y, *incy, y0, incy0 );
+
+    rho = 0.0;
+
+    for ( i = 0; i < n0; i++ )
+    {
+        float* chi1 = x0 + (i  )*incx0;
+        float* psi1 = y0 + (i  )*incy0;
+
+        bli_ddots( (( double )(*chi1)),
+                   (( double )(*psi1)), rho );
+    }
+
+    /* Finalization of BLIS is not required, because initialization was
+       not required. */
+    AOCL_DTL_TRACE_EXIT(AOCL_DTL_LEVEL_TRACE_1);
+
+    return rho;
+}
+#ifdef BLIS_ENABLE_BLAS
 double PASTEF77(d,sdot)
      (
        const f77_int* n,
@@ -285,40 +265,6 @@ double PASTEF77(d,sdot)
        const float*   y, const f77_int* incy
      )
 {
-	dim_t   n0;
-	float*  x0;
-	float*  y0;
-	inc_t   incx0;
-	inc_t   incy0;
-	double  rho;
-	dim_t   i;
-
-	/* Initialization of BLIS is not required. */
-
-	/* Convert/typecast negative values of n to zero. */
-	bli_convert_blas_dim1( *n, n0 );
-
-	/* If the input increments are negative, adjust the pointers so we can
-	   use positive increments instead. */
-	bli_convert_blas_incv( n0, (float*)x, *incx, x0, incx0 );
-	bli_convert_blas_incv( n0, (float*)y, *incy, y0, incy0 );
-
-	rho = 0.0;
-
-	for ( i = 0; i < n0; i++ )
-	{
-		float* chi1 = x0 + (i  )*incx0;
-		float* psi1 = y0 + (i  )*incy0;
-
-		bli_ddots( (( double )(*chi1)),
-		           (( double )(*psi1)), rho );
-	}
-
-	/* Finalization of BLIS is not required, because initialization was
-	   not required. */
-
-	return rho;
+  return PASTEF77S(d,sdot)( n, x, incx, y, incy );
 }
-
-#endif
-
+#endif // BLIS_ENABLE_BLAS

@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2018 - 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -87,7 +87,7 @@ void bli_thrcomm_barrier( dim_t t_id, thrcomm_t* comm )
 #if 0
 	if ( comm == NULL || comm->n_threads == 1 )
 		return;
-	bool_t my_sense = comm->barrier_sense;
+	gint_t my_sense = comm->barrier_sense;
 	dim_t my_threads_arrived;
 
 	_Pragma( "omp atomic capture" )
@@ -100,7 +100,7 @@ void bli_thrcomm_barrier( dim_t t_id, thrcomm_t* comm )
 	}
 	else
 	{
-		volatile bool_t* listener = &comm->barrier_sense;
+		volatile gint_t* listener = &comm->barrier_sense;
 		while ( *listener == my_sense ) {}
 	}
 #endif
@@ -111,17 +111,21 @@ void bli_thrcomm_barrier( dim_t t_id, thrcomm_t* comm )
 
 void bli_thrcomm_init( dim_t n_threads, thrcomm_t* comm )
 {
+	err_t r_val;
+
 	if ( comm == NULL ) return;
 	comm->sent_object = NULL;
 	comm->n_threads = n_threads;
-	comm->barriers = bli_malloc_intl( sizeof( barrier_t* ) * n_threads );
+	comm->barriers = bli_malloc_intl( sizeof( barrier_t* ) * n_threads, &r_val );
 	bli_thrcomm_tree_barrier_create( n_threads, BLIS_TREE_BARRIER_ARITY, comm->barriers, 0 );
 }
 
 //Tree barrier used for Intel Xeon Phi
 barrier_t* bli_thrcomm_tree_barrier_create( int num_threads, int arity, barrier_t** leaves, int leaf_index )
 {
-	barrier_t* me = bli_malloc_intl( sizeof(barrier_t) );
+	err_t r_val;
+
+	barrier_t* me = bli_malloc_intl( sizeof( barrier_t ), &r_val );
 
 	me->dad = NULL;
 	me->signal = 0;

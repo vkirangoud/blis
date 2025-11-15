@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2018 - 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -183,7 +183,7 @@ void PASTEMAC(ch,varname) \
 	ctype           ct[ BLIS_STACK_BUF_MAX_SIZE \
 	                    / sizeof( ctype ) ] \
 	                    __attribute__((aligned(BLIS_STACK_BUF_ALIGN_SIZE))); \
-	const bool_t    col_pref    = bli_cntx_l3_vir_ukr_prefers_cols_dt( dt, BLIS_GEMM_UKR, cntx ); \
+	const bool      col_pref    = bli_cntx_l3_vir_ukr_prefers_cols_dt( dt, BLIS_GEMM_UKR, cntx ); \
 	const inc_t     rs_ct       = ( col_pref ? 1 : NR ); \
 	const inc_t     cs_ct       = ( col_pref ? MR : 1 ); \
 \
@@ -281,9 +281,6 @@ void PASTEMAC(ch,varname) \
 	/* Save the imaginary stride of A and B to the auxinfo_t object. */ \
 	bli_auxinfo_set_is_a( is_a, &aux ); \
 	bli_auxinfo_set_is_b( is_b, &aux ); \
-\
-	/* Save the desired output datatype (indicating no typecasting). */ \
-	/*bli_auxinfo_set_dt_on_output( dt, &aux );*/ \
 \
 	/* The 'thread' argument points to the thrinfo_t node for the 2nd (jr)
 	   loop around the microkernel. Here we query the thrinfo_t node for the

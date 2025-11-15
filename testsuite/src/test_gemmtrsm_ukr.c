@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2018 - 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -215,14 +215,26 @@ void libblis_test_gemmtrsm_ukr_experiment
 	// Map the dimension specifier to actual dimensions.
 	k = libblis_test_get_dim_from_prob_size( op->dim_spec[0], p_cur );
 
-	// Fix m and n to MR and NR, respectively.
-	m = bli_cntx_get_blksz_def_dt( datatype, BLIS_MR, cntx );
-	n = bli_cntx_get_blksz_def_dt( datatype, BLIS_NR, cntx );
+
+	m = bli_cntx_get_trsm_blksz_def_dt( datatype, BLIS_MR, cntx );
+	n = bli_cntx_get_trsm_blksz_def_dt( datatype, BLIS_NR, cntx );
 
 	// Also query PACKMR and PACKNR as the leading dimensions to ap and bp,
 	// respectively.
-	ldap = bli_cntx_get_blksz_max_dt( datatype, BLIS_MR, cntx );
-	ldbp = bli_cntx_get_blksz_max_dt( datatype, BLIS_NR, cntx );
+	ldap = bli_cntx_get_trsm_blksz_max_dt( datatype, BLIS_MR, cntx );
+	ldbp = bli_cntx_get_trsm_blksz_max_dt( datatype, BLIS_NR, cntx);
+
+	// if trsm block sizes are not set use global block sizes
+	if( m == 0 || n == 0)
+	{
+		m = bli_cntx_get_blksz_def_dt( datatype, BLIS_MR, cntx );
+		n = bli_cntx_get_blksz_def_dt( datatype, BLIS_NR, cntx );
+
+		// Also query PACKMR and PACKNR as the leading dimensions to ap and bp,
+		// respectively.
+		ldap = bli_cntx_get_blksz_max_dt( datatype, BLIS_MR, cntx );
+		ldbp = bli_cntx_get_blksz_max_dt( datatype, BLIS_NR, cntx);
+	}
 
 	// Store the register blocksizes so that the driver can retrieve the
 	// values later when printing results.
@@ -339,10 +351,10 @@ void libblis_test_gemmtrsm_ukr_experiment
 	// allocated so we can re-store it to the object afterward.
 	void* buf_ap = bli_obj_buffer( &ap );
 	void* buf_bp = bli_obj_buffer( &bp );
-	bli_packm_init_pack( BLIS_INVERT_DIAG, BLIS_PACKED_ROW_PANELS,
+	bli_packm_init_pack( BLIS_INVERT_DIAG, BLIS_TRSM, BLIS_PACKED_ROW_PANELS,
 	                     BLIS_PACK_FWD_IF_UPPER, BLIS_PACK_FWD_IF_LOWER,
 	                     BLIS_MR, BLIS_KR, &a, &ap, cntx );
-	bli_packm_init_pack( BLIS_NO_INVERT_DIAG, BLIS_PACKED_COL_PANELS,
+	bli_packm_init_pack( BLIS_NO_INVERT_DIAG, BLIS_TRSM, BLIS_PACKED_COL_PANELS,
 	                     BLIS_PACK_FWD_IF_UPPER, BLIS_PACK_FWD_IF_LOWER,
 	                     BLIS_KR, BLIS_NR, &b, &bp, cntx );
 	bli_obj_set_buffer( buf_ap, &ap );
@@ -433,6 +445,7 @@ bli_printm( "ap", &ap, "%5.2f", "" );
 	bli_cntl_free( cntl_b, &BLIS_PACKM_SINGLE_THREADED );
 #endif
 
+	
 	// Free the packed objects.
 	bli_obj_free( &ap );
 	bli_obj_free( &bp );
@@ -442,6 +455,7 @@ bli_printm( "ap", &ap, "%5.2f", "" );
 	bli_obj_free( &b );
 	bli_obj_free( &c11 );
 	bli_obj_free( &c11_save );
+
 }
 
 

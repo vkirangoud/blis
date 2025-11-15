@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2020, Advanced Micro Devices, Inc.
+   Copyright (C) 2020 - 2024, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -40,8 +40,56 @@
 // Define BLAS-to-BLIS interfaces.
 //
 #undef  GENTFUNCSCAL
-#define GENTFUNCSCAL( ftype_x, ftype_a, chx, cha, blasname, blisname ) \
+#define GENTFUNCSCAL( ftype_x, ftype_a, chx, cha, chau, blasname, blisname ) \
 \
+void PASTEF772S(chx,cha,blasname) \
+     ( \
+       const f77_int* n, \
+       const ftype_a* alpha, \
+       ftype_x* x, const f77_int* incx  \
+     ) \
+{ \
+	AOCL_DTL_TRACE_ENTRY(AOCL_DTL_LEVEL_TRACE_1) \
+\
+	/* Initialize BLIS. */ \
+	bli_init_auto(); \
+\
+	dim_t n0 = (dim_t)(*n); \
+	ftype_x *x0 = x; \
+	inc_t incx0 = (inc_t)(*incx); \
+\
+	if ((n0 <= 0) || (alpha == NULL) || (incx0 <= 0) || PASTEMAC(chau, eq1)(*alpha)) \
+	{ \
+		AOCL_DTL_TRACE_EXIT(AOCL_DTL_LEVEL_TRACE_1); \
+		/* Finalize BLIS. */ \
+		bli_finalize_auto(); \
+		return ; \
+	} \
+\
+	/* NOTE: We do not natively implement BLAS's csscal/zdscal in BLIS.
+	   that is, we just always sub-optimally implement those cases
+	   by casting alpha to ctype_x (potentially the complex domain) and
+	   using the homogeneous datatype instance according to that type. */ \
+	ftype_x  alpha_cast; \
+	PASTEMAC2(cha,chx,copys)( *alpha, alpha_cast ); \
+\
+	/* Call BLIS interface. */ \
+	/* Pass size as negative to stipulate don't use SETV when alpha=0 */ \
+	PASTEMAC2(chx,blisname,BLIS_TAPI_EX_SUF) \
+	( \
+	  BLIS_NO_CONJUGATE, \
+	  -n0, \
+	  &alpha_cast, \
+	  x0, incx0, \
+	  NULL, \
+	  NULL  \
+	); \
+\
+	AOCL_DTL_TRACE_EXIT(AOCL_DTL_LEVEL_TRACE_1) \
+	/* Finalize BLIS. */ \
+	bli_finalize_auto(); \
+}\
+IF_BLIS_ENABLE_BLAS(\
 void PASTEF772(chx,cha,blasname) \
      ( \
        const f77_int* n, \
@@ -49,162 +97,8 @@ void PASTEF772(chx,cha,blasname) \
        ftype_x* x, const f77_int* incx  \
      ) \
 { \
-	dim_t    n0; \
-	ftype_x* x0; \
-	inc_t    incx0; \
-	ftype_x  alpha_cast; \
-\
-	/* Initialize BLIS. */ \
-	bli_init_auto(); \
-\
-	/* Convert/typecast negative values of n to zero. */ \
-	bli_convert_blas_dim1( *n, n0 ); \
-\
-	/* If the input increments are negative, adjust the pointers so we can
-	   use positive increments instead. */ \
-	bli_convert_blas_incv( n0, (ftype_x*)x, *incx, x0, incx0 ); \
-\
-	/* NOTE: We do not natively implement BLAS's csscal/zdscal in BLIS.
-	   that is, we just always sub-optimally implement those cases
-	   by casting alpha to ctype_x (potentially the complex domain) and
-	   using the homogeneous datatype instance according to that type. */ \
-	PASTEMAC2(cha,chx,copys)( *alpha, alpha_cast ); \
-\
-	/* Call BLIS interface. */ \
-	PASTEMAC2(chx,blisname,BLIS_TAPI_EX_SUF) \
-	( \
-	  BLIS_NO_CONJUGATE, \
-	  n0, \
-	  &alpha_cast, \
-	  x0, incx0, \
-	  NULL, \
-	  NULL  \
-	); \
-\
-	/* Finalize BLIS. */ \
-	bli_finalize_auto(); \
-}
+  PASTEF772S(chx,cha,blasname)( n, alpha, x, incx ); \
+} \
+)
 
-#ifdef BLIS_ENABLE_BLAS
-#ifdef BLIS_CONFIG_ZEN2
-
-void sscal_
-     (
-       const f77_int* n,
-       const float* alpha,
-       float*   x, const f77_int* incx
-     )
-{
-    dim_t  n0;
-    float* x0;
-    inc_t  incx0;
-    /* Initialize BLIS. */
-    //bli_init_auto();
-
-    /* Convert/typecast negative values of n to zero. */
-    if ( *n < 0 ) n0 = ( dim_t )0;
-    else              n0 = ( dim_t )(*n);
-
-    /* If the input increments are negative, adjust the pointers so we can
-       use positive increments instead. */
-    if ( *incx < 0 )
-    {
-        /* The semantics of negative stride in BLAS are that the vector
-        operand be traversed in reverse order. (Another way to think
-        of this is that negative strides effectively reverse the order
-        of the vector, but without any explicit data movements.) This
-        is also how BLIS interprets negative strides. The differences
-        is that with BLAS, the caller *always* passes in the 0th (i.e.,
-        top-most or left-most) element of the vector, even when the
-        stride is negative. By contrast, in BLIS, negative strides are
-        used *relative* to the vector address as it is given. Thus, in
-        BLIS, if this backwards traversal is desired, the caller *must*
-        pass in the address to the (n-1)th (i.e., the bottom-most or
-        right-most) element along with a negative stride. */
-
-        x0    = (x) + (n0-1)*(-*incx);
-        incx0 = ( inc_t )(*incx);
-
-    }
-    else
-    {
-        x0    = (x);
-        incx0 = ( inc_t )(*incx);
-    }
-    /* Call BLIS kernel */
-    bli_sscalv_zen_int10
-    (
-       BLIS_NO_CONJUGATE,
-       n0,
-       (float *)alpha,
-       x0, incx0,
-       NULL
-    );
-
-    /* Finalize BLIS. */
-//    bli_finalize_auto();
-}
-
-void dscal_
-     (
-       const f77_int* n,
-       const double* alpha,
-       double*   x, const f77_int* incx
-     )
-{
-    dim_t  n0;
-    double* x0;
-    inc_t  incx0;
-
-    /* Initialize BLIS  */
-    //bli_init_auto();
-
-    /* Convert typecast negative values of n to zero. */
-    if ( *n < 0 ) n0 = ( dim_t )0;
-    else              n0 = ( dim_t )(*n);
-
-    /* If the input increments are negative, adjust the pointers so we can
-       use positive increments instead. */
-    if ( *incx < 0 )
-    {
-        /* The semantics of negative stride in BLAS are that the vector
-        operand be traversed in reverse order. (Another way to think
-        of this is that negative strides effectively reverse the order
-        of the vector, but without any explicit data movements.) This
-        is also how BLIS interprets negative strides. The differences
-        is that with BLAS, the caller *always* passes in the 0th (i.e.,
-        top-most or left-most) element of the vector, even when the
-        stride is negative. By contrast, in BLIS, negative strides are
-        used *relative* to the vector address as it is given. Thus, in
-        BLIS, if this backwards traversal is desired, the caller *must*
-        pass in the address to the (n-1)th (i.e., the bottom-most or
-        right-most) element along with a negative stride. */
-
-        x0    = (x) + (n0-1)*(-*incx);
-        incx0 = ( inc_t )(*incx);
-
-    }
-    else
-    {
-        x0    = (x);
-        incx0 = ( inc_t )(*incx);
-    }
-    /* Call BLIS kernel */
-    bli_dscalv_zen_int10
-    (
-	BLIS_NO_CONJUGATE,
-	n0,
-	(double*) alpha,
-	x0, incx0,
-	NULL
-    );
-
-    /* Finalize BLIS. */
-//    bli_finalize_auto();
-}
-
-INSERT_GENTFUNCSCAL_BLAS_CZ( scal, scalv )
-#else
 INSERT_GENTFUNCSCAL_BLAS( scal, scalv )
-#endif
-#endif

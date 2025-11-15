@@ -6,7 +6,7 @@
 
    Copyright (C) 2014, The University of Texas at Austin
    Copyright (C) 2016, Hewlett Packard Enterprise Development LP
-   Copyright (C) 2018 - 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2024, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -57,13 +57,18 @@
 // for the sup code path.
 #include "bli_l3_sup_decor.h"
 
+// Include the pack full thread decorator and related definitions and prototypes
+// for the pack code path.
+#include "bli_pack_full_decor.h"
+// Include the level-3 thread decorator and related definitions and prototypes
+// for the compute code path.
+#include "bli_l3_compute_decor.h"
+
 // Initialization-related prototypes.
 void bli_thread_init( void );
+void bli_thread_init_tl( void );
 void bli_thread_finalize( void );
-
-#ifdef _MSC_VER
-#define strerror_r(errno,buf,len) strerror_s(buf,len,errno)
-#endif
+void bli_thread_finalize_tl( void );
 
 // Thread range-related prototypes.
 
@@ -73,7 +78,7 @@ void bli_thread_range_sub
        thrinfo_t* thread,
        dim_t      n,
        dim_t      bf,
-       bool_t     handle_edge_low,
+       bool       handle_edge_low,
        dim_t*     start,
        dim_t*     end
      );
@@ -130,7 +135,7 @@ dim_t bli_thread_range_width_l
        dim_t  bf,
        dim_t  bf_left,
        double area_per_thr,
-       bool_t handle_edge_low
+       bool   handle_edge_low
      );
 siz_t bli_find_area_trap_l
      (
@@ -146,7 +151,7 @@ siz_t bli_thread_range_weighted_sub
        dim_t               m,
        dim_t               n,
        dim_t               bf,
-       bool_t              handle_edge_low,
+       bool                handle_edge_low,
        dim_t*     restrict j_start_thr,
        dim_t*     restrict j_end_thr
      );
@@ -164,6 +169,7 @@ typedef struct
 void bli_prime_factorization(dim_t n, bli_prime_factors_t* factors);
 
 dim_t bli_next_prime_factor(bli_prime_factors_t* factors);
+bool  bli_is_prime( dim_t n );
 
 void bli_thread_partition_2x2
      (
@@ -173,6 +179,43 @@ void bli_thread_partition_2x2
        dim_t* restrict nt1,
        dim_t* restrict nt2
      );
+
+void bli_thread_partition_2x2_slow
+     (
+       dim_t           n_thread,
+       dim_t           work1,
+       dim_t           work2,
+       dim_t* restrict nt1,
+       dim_t* restrict nt2
+     );
+void bli_thread_partition_2x2_fast
+     (
+       dim_t           n_thread,
+       dim_t           work1,
+       dim_t           work2,
+       dim_t* restrict nt1,
+       dim_t* restrict nt2
+     );
+
+void bli_thread_vector_partition
+     (
+       dim_t  n_elem,
+       dim_t  t_count,
+       dim_t* start,
+       dim_t* compute_len,
+       dim_t  thread_id
+     );
+
+void bli_normfv_thread_partition
+	 (
+		dim_t 	n_elem,
+		dim_t 	t_count,
+		dim_t* 	start,
+		dim_t* 	compute_len,
+		dim_t  	block_size,
+		dim_t 	incx,
+		dim_t 	thread_id
+	 );
 
 // -----------------------------------------------------------------------------
 
@@ -189,19 +232,25 @@ BLIS_EXPORT_BLIS dim_t bli_thread_get_jr_nt( void );
 BLIS_EXPORT_BLIS dim_t bli_thread_get_ir_nt( void );
 BLIS_EXPORT_BLIS dim_t bli_thread_get_num_threads( void );
 
+BLIS_EXPORT_BLIS bool bli_thread_get_is_parallel( void ); 
+
 BLIS_EXPORT_BLIS void  bli_thread_set_ways( dim_t jc, dim_t pc, dim_t ic, dim_t jr, dim_t ir );
 BLIS_EXPORT_BLIS void  bli_thread_set_num_threads( dim_t value );
 
-void  bli_thread_init_rntm_from_env( rntm_t* rntm );
+BLIS_EXPORT_BLIS void  bli_thread_init_rntm_from_env( rntm_t* rntm );
+
+BLIS_EXPORT_BLIS void  bli_thread_init_rntm_from_global_rntm( rntm_t* rntm );
+
+BLIS_EXPORT_BLIS void  bli_thread_update_rntm_from_env( rntm_t* rntm );
 
 // -----------------------------------------------------------------------------
 
-static void bli_thread_range_jrir_rr
+BLIS_INLINE void bli_thread_range_jrir_rr
      (
        thrinfo_t* thread,
        dim_t      n,
        dim_t      bf,
-       bool_t     handle_edge_low,
+       bool       handle_edge_low,
        dim_t*     start,
        dim_t*     end,
        dim_t*     inc
@@ -213,12 +262,12 @@ static void bli_thread_range_jrir_rr
 	*end   = n;
 }
 
-static void bli_thread_range_jrir_sl
+BLIS_INLINE void bli_thread_range_jrir_sl
      (
        thrinfo_t* thread,
        dim_t      n,
        dim_t      bf,
-       bool_t     handle_edge_low,
+       bool       handle_edge_low,
        dim_t*     start,
        dim_t*     end,
        dim_t*     inc
@@ -229,12 +278,12 @@ static void bli_thread_range_jrir_sl
 	*inc = 1;
 }
 
-static void bli_thread_range_jrir
+BLIS_INLINE void bli_thread_range_jrir
      (
        thrinfo_t* thread,
        dim_t      n,
        dim_t      bf,
-       bool_t     handle_edge_low,
+       bool       handle_edge_low,
        dim_t*     start,
        dim_t*     end,
        dim_t*     inc
@@ -251,7 +300,7 @@ static void bli_thread_range_jrir
 }
 
 #if 0
-static void bli_thread_range_weighted_jrir
+BLIS_INLINE void bli_thread_range_weighted_jrir
      (
        thrinfo_t* thread,
        doff_t     diagoff,
@@ -259,7 +308,7 @@ static void bli_thread_range_weighted_jrir
        dim_t      m,
        dim_t      n,
        dim_t      bf,
-       bool_t     handle_edge_low,
+       bool       handle_edge_low,
        dim_t*     start,
        dim_t*     end,
        dim_t*     inc

@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2018, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -122,6 +122,8 @@ err_t bli_l3_sup_thread_decorator
        rntm_t*    rntm
      )
 {
+	err_t r_val;
+
 	// Query the total number of threads from the context.
 	const dim_t n_threads = bli_rntm_num_threads( rntm );
 
@@ -141,7 +143,7 @@ err_t bli_l3_sup_thread_decorator
 	// Set the packing block allocator field of the rntm. This will be
 	// inherited by all of the child threads when they make local copies of
 	// the rntm below.
-	bli_membrk_rntm_set_membrk( rntm );
+	bli_pba_rntm_set_pba( rntm );
 
 	// Allocate a global communicator for the root thrinfo_t structures.
 	thrcomm_t* restrict gl_comm = bli_thrcomm_create( rntm, n_threads );
@@ -152,12 +154,12 @@ err_t bli_l3_sup_thread_decorator
 	#ifdef BLIS_ENABLE_MEM_TRACING
 	printf( "bli_l3_thread_decorator().pth: " );
 	#endif
-	bli_pthread_t* pthreads = bli_malloc_intl( sizeof( bli_pthread_t ) * n_threads );
+	bli_pthread_t* pthreads = bli_malloc_intl( sizeof( bli_pthread_t ) * n_threads, &r_val );
 
 	#ifdef BLIS_ENABLE_MEM_TRACING
 	printf( "bli_l3_thread_decorator().pth: " );
 	#endif
-	thread_data_t* datas    = bli_malloc_intl( sizeof( thread_data_t ) * n_threads );
+	thread_data_t* datas    = bli_malloc_intl( sizeof( thread_data_t ) * n_threads, &r_val );
 
 	// NOTE: We must iterate backwards so that the chief thread (thread id 0)
 	// can spawn all other threads before proceeding with its own computation.

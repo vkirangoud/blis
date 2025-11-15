@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2018 - 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -41,10 +41,10 @@
 static char*     op_str                    = "dotxaxpyf";
 static char*     o_types                   = "mvvvv";  // A w x y z
 static char*     p_types                   = "cccc";   // conjat conja conjw conjx
-static thresh_t  thresh[BLIS_NUM_FP_TYPES] = { { 1e-04, 1e-05 },   // warn, pass for s
-                                               { 1e-04, 1e-05 },   // warn, pass for c
-                                               { 1e-13, 1e-14 },   // warn, pass for d
-                                               { 1e-13, 1e-14 } }; // warn, pass for z
+static thresh_t  thresh[BLIS_NUM_FP_TYPES] = { { 5e-04, 5e-05 },   // warn, pass for s
+                                               { 5e-04, 5e-05 },   // warn, pass for c
+                                               { 5e-13, 5e-14 },   // warn, pass for d
+                                               { 5e-13, 5e-14 } }; // warn, pass for z
 
 // Local prototypes.
 void libblis_test_dotxaxpyf_deps

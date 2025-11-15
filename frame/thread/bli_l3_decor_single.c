@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2018, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -78,7 +78,7 @@ void bli_l3_thread_decorator
 	bli_sba_rntm_set_pool( 0, array, rntm );
 
 	// Set the packing block allocator field of the rntm.
-	bli_membrk_rntm_set_membrk( rntm );
+	bli_pba_rntm_set_pba( rntm );
 
 	// Allcoate a global communicator for the root thrinfo_t structures.
 	thrcomm_t* restrict gl_comm = bli_thrcomm_create( rntm, n_threads );
@@ -115,7 +115,18 @@ void bli_l3_thread_decorator
 
 		// Create the root node of the thread's thrinfo_t structure.
 		bli_l3_thrinfo_create_root( tid, gl_comm, rntm_p, cntl_use, &thread );
-
+		
+		// Reset the progress state to 0 as we are starting new operations.
+		// This counter track running progress in current thread.
+		tls_aoclprogress_counter = 0;
+		
+		// We send the update only after certain threshold is reached, 
+		// The threshold is defined as AOCL_PROGRESS_FREQUENCY.
+		// This variable stores the counter value when last update was sent. 
+		// It is compared with current counter value to see if it is time to
+		// send the next update.
+		tls_aoclprogress_last_update = 0;
+		
 		func
 		(
 		  alpha,

@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2019 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -99,6 +99,26 @@
   #define BLIS_ENABLE_MULTITHREADING
 #endif
 
+// Enable the use of prime numbers of threads when requesting automatic thread
+// factorization. When disabled, requesting a prime number of threads will
+// result in a reduction (by one) of the number of threads, provided that the
+// prime number exceeds a minimum threshold (see below).
+#ifdef BLIS_ENABLE_AUTO_PRIME_NUM_THREADS
+  #undef BLIS_DISABLE_AUTO_PRIME_NUM_THREADS
+#else
+  // Default behavior is disabled.
+  #undef  BLIS_DISABLE_AUTO_PRIME_NUM_THREADS // In case user explicitly disabled.
+  #define BLIS_DISABLE_AUTO_PRIME_NUM_THREADS
+#endif
+
+// Set the maximum requested number of threads that BLIS will accept from the
+// user that may be prime. If a larger prime number of threads is requested,
+// it will be reduced by one to allow for more efficient thread factorizations.
+// This value will only be used if BLIS_ENABLE_AUTO_PRIME_NUM_THREADS is defined.
+#ifndef BLIS_NT_MAX_PRIME
+  #define BLIS_NT_MAX_PRIME 11
+#endif
+
 
 // -- MIXED DATATYPE SUPPORT ---------------------------------------------------
 
@@ -129,16 +149,6 @@
   #define BLIS_RELAX_MCNR_NCMR_CONSTRAINTS
 #endif
 
-// Stay initialized after auto-initialization, unless and until the user
-// explicitly calls bli_finalize().
-#ifdef BLIS_DISABLE_STAY_AUTO_INITIALIZED
-  #undef BLIS_ENABLE_STAY_AUTO_INITIALIZED
-#else
-  // Default behavior is enabled.
-  #undef  BLIS_ENABLE_STAY_AUTO_INITIALIZED // In case user explicitly enabled.
-  #define BLIS_ENABLE_STAY_AUTO_INITIALIZED
-#endif
-
 
 // -- BLAS COMPATIBILITY LAYER -------------------------------------------------
 
@@ -149,6 +159,16 @@
   // Default behavior is enabled.
   #undef  BLIS_ENABLE_BLAS // In case user explicitly enabled.
   #define BLIS_ENABLE_BLAS
+#endif
+
+#ifdef BLIS_ENABLE_BLAS
+  #define IF_BLIS_ENABLE_BLAS(...) __VA_ARGS__
+  #define PASTE_LSAME PASTEF770(lsame)
+  #define PASTE_XERBLA PASTEF770(xerbla)
+#else
+  #define IF_BLIS_ENABLE_BLAS(...)
+  #define PASTE_LSAME lsame_blis_impl
+  #define PASTE_XERBLA xerbla_blis_impl
 #endif
 
 // The bit size of the integer type used to track values such as dimensions and
@@ -211,7 +231,7 @@
       #ifdef BLIS_IS_BUILDING_LIBRARY
         #define BLIS_EXPORT __declspec(dllexport)
       #else
-        #define BLIS_EXPORT __declspec(dllimport)
+        #define BLIS_EXPORT
       #endif
     #elif defined(__GNUC__) && __GNUC__ >= 4
       #define BLIS_EXPORT __attribute__ ((visibility ("default")))
@@ -221,9 +241,31 @@
   #endif
 #endif
 
-#define BLIS_EXPORT_BLIS BLIS_EXPORT
-#define BLIS_EXPORT_BLAS BLIS_EXPORT
+#define BLIS_EXPORT_BLIS  BLIS_EXPORT
+#define BLIS_EXPORT_BLAS  BLIS_EXPORT
+#define BLIS_EXPORT_ADDON BLIS_EXPORT
 
+
+// -- STATIC INLINE FUNCTIONS --------------------------------------------------
+
+// C and C++ have different semantics for defining "inline" functions. In C,
+// the keyword phrase "static inline" accomplishes this, though the "inline"
+// is optional. In C++, the "inline" keyword is required and obviates "static"
+// altogether. Why does this matter? While BLIS is compiled in C99, blis.h may
+// be #included by a source file that is compiled with C++.
+#ifdef __cplusplus
+  #define BLIS_INLINE inline
+#else
+  //#define BLIS_INLINE static inline
+  #define BLIS_INLINE static
+#endif
+
+
+#ifdef BLIS_OS_WINDOWS
+  #define BLIS_TLS_TYPE __declspec(thread)
+#else
+  #define BLIS_TLS_TYPE __thread
+#endif
 
 #endif
 

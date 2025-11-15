@@ -5,6 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
+   Copyright (C) 2021 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -34,14 +35,17 @@
 
 #include "blis.h"
 
-#ifdef BLIS_ENABLE_BLAS
+// Make thread settings local to each thread calling BLIS routines.
+// (The definition resides in bli_rntm.c.)
+extern BLIS_THREAD_LOCAL rntm_t tl_rntm;
 
 /* ctbsv.f -- translated by f2c (version 19991025).
    You must link the resulting object file with the libraries:
 	-lf2c -lm   (in that order)
 */
 
-/* Subroutine */ int PASTEF77(c,tbsv)(const bla_character *uplo, const bla_character *trans, const bla_character *diag, const bla_integer *n, const bla_integer *k, const bla_scomplex *a, const bla_integer *lda, bla_scomplex *x, const bla_integer *incx)
+/* Subroutine */ 
+int PASTEF77S(c,tbsv)(const bla_character *uplo, const bla_character *trans, const bla_character *diag, const bla_integer *n, const bla_integer *k, const bla_scomplex *a, const bla_integer *lda, bla_scomplex *x, const bla_integer *incx)
 {
     /* System generated locals */
     bla_integer a_dim1, a_offset, i__1, i__2, i__3, i__4, i__5;
@@ -54,9 +58,9 @@
     bla_integer info;
     bla_scomplex temp;
     bla_integer i__, j, l;
-    //extern bla_logical PASTEF770(lsame)(bla_character *, bla_character *, ftnlen, ftnlen);
+    //extern bla_logical PASTE_LSAME(bla_character *, bla_character *, ftnlen, ftnlen);
     bla_integer kplus1, ix, jx, kx = 0;
-    //extern /* Subroutine */ int PASTEF770(xerbla)(bla_character *, bla_integer *, ftnlen);
+    //extern /* Subroutine */ int PASTE_XERBLA(bla_character *, bla_integer *, ftnlen);
     bla_logical noconj, nounit;
 
 /*     .. Scalar Arguments .. */
@@ -212,15 +216,20 @@
     --x;
 
     /* Function Body */
+
+    // Initialize info_value to 0
+    gint_t info_value = 0;
+    bli_rntm_set_info_value_only( info_value, &tl_rntm );
+
     info = 0;
-    if (! PASTEF770(lsame)(uplo, "U", (ftnlen)1, (ftnlen)1) && ! PASTEF770(lsame)(uplo, "L", (
+    if (! PASTE_LSAME(uplo, "U", (ftnlen)1, (ftnlen)1) && ! PASTE_LSAME(uplo, "L", (
 	    ftnlen)1, (ftnlen)1)) {
 	info = 1;
-    } else if (! PASTEF770(lsame)(trans, "N", (ftnlen)1, (ftnlen)1) && ! PASTEF770(lsame)(trans, 
-	    "T", (ftnlen)1, (ftnlen)1) && ! PASTEF770(lsame)(trans, "C", (ftnlen)1, (
+    } else if (! PASTE_LSAME(trans, "N", (ftnlen)1, (ftnlen)1) && ! PASTE_LSAME(trans, 
+	    "T", (ftnlen)1, (ftnlen)1) && ! PASTE_LSAME(trans, "C", (ftnlen)1, (
 	    ftnlen)1)) {
 	info = 2;
-    } else if (! PASTEF770(lsame)(diag, "U", (ftnlen)1, (ftnlen)1) && ! PASTEF770(lsame)(diag, 
+    } else if (! PASTE_LSAME(diag, "U", (ftnlen)1, (ftnlen)1) && ! PASTE_LSAME(diag, 
 	    "N", (ftnlen)1, (ftnlen)1)) {
 	info = 3;
     } else if (*n < 0) {
@@ -233,7 +242,7 @@
 	info = 9;
     }
     if (info != 0) {
-	PASTEF770(xerbla)("CTBSV ", &info, (ftnlen)6);
+	PASTE_XERBLA("CTBSV ", &info, (ftnlen)6);
 	return 0;
     }
 
@@ -243,8 +252,8 @@
 	return 0;
     }
 
-    noconj = PASTEF770(lsame)(trans, "T", (ftnlen)1, (ftnlen)1);
-    nounit = PASTEF770(lsame)(diag, "N", (ftnlen)1, (ftnlen)1);
+    noconj = PASTE_LSAME(trans, "T", (ftnlen)1, (ftnlen)1);
+    nounit = PASTE_LSAME(diag, "N", (ftnlen)1, (ftnlen)1);
 
 /*     Set up the start point in X if the increment is not unity. This */
 /*     will be  ( N - 1 )*INCX  too small for descending loops. */
@@ -258,16 +267,22 @@
 /*     Start the operations. In this version the elements of A are */
 /*     accessed by sequentially with one pass through A. */
 
-    if (PASTEF770(lsame)(trans, "N", (ftnlen)1, (ftnlen)1)) {
+    if (PASTE_LSAME(trans, "N", (ftnlen)1, (ftnlen)1)) {
 
 /*        Form  x := inv( A )*x. */
 
-	if (PASTEF770(lsame)(uplo, "U", (ftnlen)1, (ftnlen)1)) {
+	if (PASTE_LSAME(uplo, "U", (ftnlen)1, (ftnlen)1)) {
 	    kplus1 = *k + 1;
 	    if (*incx == 1) {
 		for (j = *n; j >= 1; --j) {
 		    i__1 = j;
-		    if (bli_creal(x[i__1]) != 0.f || bli_cimag(x[i__1]) != 0.f) {
+			//When matrix A is singular or near singular, the solution to Ax = b is non-trivial
+			//Therefore inverse of A doesn't exist. Here by commenting out the below lines, 
+			//we end up generating NAN or inf
+			//Therefore inverse of A doesn't exist. Here by commenting out the below lines, 
+			//we end up generating NAN or inf
+			//if (bli_creal(x[i__1]) != 0.f || bli_cimag(x[i__1]) != 0.f) 
+			{
 			l = kplus1 - j;
 			if (nounit) {
 			    i__1 = j;
@@ -297,7 +312,11 @@
 		for (j = *n; j >= 1; --j) {
 		    kx -= *incx;
 		    i__1 = jx;
-		    if (bli_creal(x[i__1]) != 0.f || bli_cimag(x[i__1]) != 0.f) {
+			//When matrix A is singular or near singular, the solution to Ax = b is non-trivial
+			//Therefore inverse of A doesn't exist. Here by commenting out the below lines, 
+			//we end up generating NAN or inf
+			//if (bli_creal(x[i__1]) != 0.f || bli_cimag(x[i__1]) != 0.f) 
+			{
 			ix = kx;
 			l = kplus1 - j;
 			if (nounit) {
@@ -330,7 +349,11 @@
 		i__1 = *n;
 		for (j = 1; j <= i__1; ++j) {
 		    i__2 = j;
-		    if (bli_creal(x[i__2]) != 0.f || bli_cimag(x[i__2]) != 0.f) {
+			//When matrix A is singular or near singular, the solution to Ax = b is non-trivial
+			//Therefore inverse of A doesn't exist. Here by commenting out the below lines, 
+			//we end up generating NAN or inf
+			//if (bli_creal(x[i__2]) != 0.f || bli_cimag(x[i__2]) != 0.f) 
+			{
 			l = 1 - j;
 			if (nounit) {
 			    i__2 = j;
@@ -360,7 +383,11 @@
 		for (j = 1; j <= i__1; ++j) {
 		    kx += *incx;
 		    i__2 = jx;
-		    if (bli_creal(x[i__2]) != 0.f || bli_cimag(x[i__2]) != 0.f) {
+			//When matrix A is singular or near singular, the solution to Ax = b is non-trivial
+			//Therefore inverse of A doesn't exist. Here by commenting out the below lines, 
+			//we end up generating NAN or inf
+			//if (bli_creal(x[i__2]) != 0.f || bli_cimag(x[i__2]) != 0.f) 
+			{
 			ix = kx;
 			l = 1 - j;
 			if (nounit) {
@@ -393,7 +420,7 @@
 
 /*        Form  x := inv( A' )*x  or  x := inv( conjg( A') )*x. */
 
-	if (PASTEF770(lsame)(uplo, "U", (ftnlen)1, (ftnlen)1)) {
+	if (PASTE_LSAME(uplo, "U", (ftnlen)1, (ftnlen)1)) {
 	    kplus1 = *k + 1;
 	    if (*incx == 1) {
 		i__1 = *n;
@@ -603,7 +630,8 @@
 	-lf2c -lm   (in that order)
 */
 
-/* Subroutine */ int PASTEF77(d,tbsv)(const bla_character *uplo, const bla_character *trans, const bla_character *diag, const bla_integer *n, const bla_integer *k, const bla_double *a, const bla_integer *lda, bla_double *x, const bla_integer *incx)
+/* Subroutine */ 
+int PASTEF77S(d,tbsv)(const bla_character *uplo, const bla_character *trans, const bla_character *diag, const bla_integer *n, const bla_integer *k, const bla_double *a, const bla_integer *lda, bla_double *x, const bla_integer *incx)
 {
     /* System generated locals */
     bla_integer a_dim1, a_offset, i__1, i__2, i__3, i__4;
@@ -612,9 +640,9 @@
     bla_integer info;
     bla_double temp;
     bla_integer i__, j, l;
-    //extern bla_logical PASTEF770(lsame)(bla_character *, bla_character *, ftnlen, ftnlen);
+    //extern bla_logical PASTE_LSAME(bla_character *, bla_character *, ftnlen, ftnlen);
     bla_integer kplus1, ix, jx, kx = 0;
-    //extern /* Subroutine */ int PASTEF770(xerbla)(bla_character *, bla_integer *, ftnlen);
+    //extern /* Subroutine */ int PASTE_XERBLA(bla_character *, bla_integer *, ftnlen);
     bla_logical nounit;
 
 /*     .. Scalar Arguments .. */
@@ -770,15 +798,20 @@
     --x;
 
     /* Function Body */
+
+    // Initialize info_value to 0
+    gint_t info_value = 0;
+    bli_rntm_set_info_value_only( info_value, &tl_rntm );
+
     info = 0;
-    if (! PASTEF770(lsame)(uplo, "U", (ftnlen)1, (ftnlen)1) && ! PASTEF770(lsame)(uplo, "L", (
+    if (! PASTE_LSAME(uplo, "U", (ftnlen)1, (ftnlen)1) && ! PASTE_LSAME(uplo, "L", (
 	    ftnlen)1, (ftnlen)1)) {
 	info = 1;
-    } else if (! PASTEF770(lsame)(trans, "N", (ftnlen)1, (ftnlen)1) && ! PASTEF770(lsame)(trans, 
-	    "T", (ftnlen)1, (ftnlen)1) && ! PASTEF770(lsame)(trans, "C", (ftnlen)1, (
+    } else if (! PASTE_LSAME(trans, "N", (ftnlen)1, (ftnlen)1) && ! PASTE_LSAME(trans, 
+	    "T", (ftnlen)1, (ftnlen)1) && ! PASTE_LSAME(trans, "C", (ftnlen)1, (
 	    ftnlen)1)) {
 	info = 2;
-    } else if (! PASTEF770(lsame)(diag, "U", (ftnlen)1, (ftnlen)1) && ! PASTEF770(lsame)(diag, 
+    } else if (! PASTE_LSAME(diag, "U", (ftnlen)1, (ftnlen)1) && ! PASTE_LSAME(diag, 
 	    "N", (ftnlen)1, (ftnlen)1)) {
 	info = 3;
     } else if (*n < 0) {
@@ -791,7 +824,7 @@
 	info = 9;
     }
     if (info != 0) {
-	PASTEF770(xerbla)("DTBSV ", &info, (ftnlen)6);
+	PASTE_XERBLA("DTBSV ", &info, (ftnlen)6);
 	return 0;
     }
 
@@ -801,7 +834,7 @@
 	return 0;
     }
 
-    nounit = PASTEF770(lsame)(diag, "N", (ftnlen)1, (ftnlen)1);
+    nounit = PASTE_LSAME(diag, "N", (ftnlen)1, (ftnlen)1);
 
 /*     Set up the start point in X if the increment is not unity. This */
 /*     will be  ( N - 1 )*INCX  too small for descending loops. */
@@ -815,15 +848,19 @@
 /*     Start the operations. In this version the elements of A are */
 /*     accessed by sequentially with one pass through A. */
 
-    if (PASTEF770(lsame)(trans, "N", (ftnlen)1, (ftnlen)1)) {
+    if (PASTE_LSAME(trans, "N", (ftnlen)1, (ftnlen)1)) {
 
 /*        Form  x := inv( A )*x. */
 
-	if (PASTEF770(lsame)(uplo, "U", (ftnlen)1, (ftnlen)1)) {
+	if (PASTE_LSAME(uplo, "U", (ftnlen)1, (ftnlen)1)) {
 	    kplus1 = *k + 1;
 	    if (*incx == 1) {
 		for (j = *n; j >= 1; --j) {
-		    if (x[j] != 0.) {
+			//When matrix A is singular or near singular, the solution to Ax = b is non-trivial
+			//Therefore inverse of A doesn't exist. Here by commenting out the below lines, 
+			//we end up generating NAN or inf
+			//if (x[j] != 0.) 
+			{
 			l = kplus1 - j;
 			if (nounit) {
 			    x[j] /= a[kplus1 + j * a_dim1];
@@ -844,7 +881,11 @@
 		jx = kx;
 		for (j = *n; j >= 1; --j) {
 		    kx -= *incx;
-		    if (x[jx] != 0.) {
+			//When matrix A is singular or near singular, the solution to Ax = b is non-trivial
+			//Therefore inverse of A doesn't exist. Here by commenting out the below lines, 
+			//we end up generating NAN or inf
+			//if (x[jx] != 0.) 
+			{
 			ix = kx;
 			l = kplus1 - j;
 			if (nounit) {
@@ -868,7 +909,11 @@
 	    if (*incx == 1) {
 		i__1 = *n;
 		for (j = 1; j <= i__1; ++j) {
-		    if (x[j] != 0.) {
+			//When matrix A is singular or near singular, the solution to Ax = b is non-trivial
+			//Therefore inverse of A doesn't exist. Here by commenting out the below lines, 
+			//we end up generating NAN or inf
+			//if (x[j] != 0.) 
+			{
 			l = 1 - j;
 			if (nounit) {
 			    x[j] /= a[j * a_dim1 + 1];
@@ -889,7 +934,11 @@
 		i__1 = *n;
 		for (j = 1; j <= i__1; ++j) {
 		    kx += *incx;
-		    if (x[jx] != 0.) {
+			//When matrix A is singular or near singular, the solution to Ax = b is non-trivial
+			//Therefore inverse of A doesn't exist. Here by commenting out the below lines, 
+			//we end up generating NAN or inf
+			//if (x[jx] != 0.) 
+			{
 			ix = kx;
 			l = 1 - j;
 			if (nounit) {
@@ -914,7 +963,7 @@
 
 /*        Form  x := inv( A')*x. */
 
-	if (PASTEF770(lsame)(uplo, "U", (ftnlen)1, (ftnlen)1)) {
+	if (PASTE_LSAME(uplo, "U", (ftnlen)1, (ftnlen)1)) {
 	    kplus1 = *k + 1;
 	    if (*incx == 1) {
 		i__1 = *n;
@@ -1018,7 +1067,8 @@
 	-lf2c -lm   (in that order)
 */
 
-/* Subroutine */ int PASTEF77(s,tbsv)(const bla_character *uplo, const bla_character *trans, const bla_character *diag, const bla_integer *n, const bla_integer *k, const bla_real *a, const bla_integer *lda, bla_real *x, const bla_integer *incx)
+/* Subroutine */ 
+int PASTEF77S(s,tbsv)(const bla_character *uplo, const bla_character *trans, const bla_character *diag, const bla_integer *n, const bla_integer *k, const bla_real *a, const bla_integer *lda, bla_real *x, const bla_integer *incx)
 {
     /* System generated locals */
     bla_integer a_dim1, a_offset, i__1, i__2, i__3, i__4;
@@ -1027,9 +1077,9 @@
     bla_integer info;
     bla_real temp;
     bla_integer i__, j, l;
-    //extern bla_logical PASTEF770(lsame)(bla_character *, bla_character *, ftnlen, ftnlen);
+    //extern bla_logical PASTE_LSAME(bla_character *, bla_character *, ftnlen, ftnlen);
     bla_integer kplus1, ix, jx, kx = 0;
-    //extern /* Subroutine */ int PASTEF770(xerbla)(bla_character *, bla_integer *, ftnlen);
+    //extern /* Subroutine */ int PASTE_XERBLA(bla_character *, bla_integer *, ftnlen);
     bla_logical nounit;
 
 /*     .. Scalar Arguments .. */
@@ -1185,15 +1235,20 @@
     --x;
 
     /* Function Body */
+
+    // Initialize info_value to 0
+    gint_t info_value = 0;
+    bli_rntm_set_info_value_only( info_value, &tl_rntm );
+
     info = 0;
-    if (! PASTEF770(lsame)(uplo, "U", (ftnlen)1, (ftnlen)1) && ! PASTEF770(lsame)(uplo, "L", (
+    if (! PASTE_LSAME(uplo, "U", (ftnlen)1, (ftnlen)1) && ! PASTE_LSAME(uplo, "L", (
 	    ftnlen)1, (ftnlen)1)) {
 	info = 1;
-    } else if (! PASTEF770(lsame)(trans, "N", (ftnlen)1, (ftnlen)1) && ! PASTEF770(lsame)(trans, 
-	    "T", (ftnlen)1, (ftnlen)1) && ! PASTEF770(lsame)(trans, "C", (ftnlen)1, (
+    } else if (! PASTE_LSAME(trans, "N", (ftnlen)1, (ftnlen)1) && ! PASTE_LSAME(trans, 
+	    "T", (ftnlen)1, (ftnlen)1) && ! PASTE_LSAME(trans, "C", (ftnlen)1, (
 	    ftnlen)1)) {
 	info = 2;
-    } else if (! PASTEF770(lsame)(diag, "U", (ftnlen)1, (ftnlen)1) && ! PASTEF770(lsame)(diag, 
+    } else if (! PASTE_LSAME(diag, "U", (ftnlen)1, (ftnlen)1) && ! PASTE_LSAME(diag, 
 	    "N", (ftnlen)1, (ftnlen)1)) {
 	info = 3;
     } else if (*n < 0) {
@@ -1206,7 +1261,7 @@
 	info = 9;
     }
     if (info != 0) {
-	PASTEF770(xerbla)("STBSV ", &info, (ftnlen)6);
+	PASTE_XERBLA("STBSV ", &info, (ftnlen)6);
 	return 0;
     }
 
@@ -1216,7 +1271,7 @@
 	return 0;
     }
 
-    nounit = PASTEF770(lsame)(diag, "N", (ftnlen)1, (ftnlen)1);
+    nounit = PASTE_LSAME(diag, "N", (ftnlen)1, (ftnlen)1);
 
 /*     Set up the start point in X if the increment is not unity. This */
 /*     will be  ( N - 1 )*INCX  too small for descending loops. */
@@ -1230,15 +1285,19 @@
 /*     Start the operations. In this version the elements of A are */
 /*     accessed by sequentially with one pass through A. */
 
-    if (PASTEF770(lsame)(trans, "N", (ftnlen)1, (ftnlen)1)) {
+    if (PASTE_LSAME(trans, "N", (ftnlen)1, (ftnlen)1)) {
 
 /*        Form  x := inv( A )*x. */
 
-	if (PASTEF770(lsame)(uplo, "U", (ftnlen)1, (ftnlen)1)) {
+	if (PASTE_LSAME(uplo, "U", (ftnlen)1, (ftnlen)1)) {
 	    kplus1 = *k + 1;
 	    if (*incx == 1) {
 		for (j = *n; j >= 1; --j) {
-		    if (x[j] != 0.f) {
+			//When matrix A is singular or near singular, the solution to Ax = b is non-trivial
+			//Therefore inverse of A doesn't exist. Here by commenting out the below lines, 
+			//we end up generating NAN or inf
+			//if (x[j] != 0.f) 
+			{
 			l = kplus1 - j;
 			if (nounit) {
 			    x[j] /= a[kplus1 + j * a_dim1];
@@ -1259,7 +1318,11 @@
 		jx = kx;
 		for (j = *n; j >= 1; --j) {
 		    kx -= *incx;
-		    if (x[jx] != 0.f) {
+			//When matrix A is singular or near singular, the solution to Ax = b is non-trivial
+			//Therefore inverse of A doesn't exist. Here by commenting out the below lines, 
+			//we end up generating NAN or inf
+			//if (x[jx] != 0.f) 
+			{
 			ix = kx;
 			l = kplus1 - j;
 			if (nounit) {
@@ -1283,7 +1346,11 @@
 	    if (*incx == 1) {
 		i__1 = *n;
 		for (j = 1; j <= i__1; ++j) {
-		    if (x[j] != 0.f) {
+			//When matrix A is singular or near singular, the solution to Ax = b is non-trivial
+			//Therefore inverse of A doesn't exist. Here by commenting out the below lines, 
+			//we end up generating NAN or inf
+			//if (x[j] != 0.f) 
+			{
 			l = 1 - j;
 			if (nounit) {
 			    x[j] /= a[j * a_dim1 + 1];
@@ -1304,7 +1371,11 @@
 		i__1 = *n;
 		for (j = 1; j <= i__1; ++j) {
 		    kx += *incx;
-		    if (x[jx] != 0.f) {
+			//When matrix A is singular or near singular, the solution to Ax = b is non-trivial
+			//Therefore inverse of A doesn't exist. Here by commenting out the below lines, 
+			//we end up generating NAN or inf
+			//if (x[jx] != 0.f) 
+			{
 			ix = kx;
 			l = 1 - j;
 			if (nounit) {
@@ -1329,7 +1400,7 @@
 
 /*        Form  x := inv( A')*x. */
 
-	if (PASTEF770(lsame)(uplo, "U", (ftnlen)1, (ftnlen)1)) {
+	if (PASTE_LSAME(uplo, "U", (ftnlen)1, (ftnlen)1)) {
 	    kplus1 = *k + 1;
 	    if (*incx == 1) {
 		i__1 = *n;
@@ -1433,7 +1504,8 @@
 	-lf2c -lm   (in that order)
 */
 
-/* Subroutine */ int PASTEF77(z,tbsv)(const bla_character *uplo, const bla_character *trans, const bla_character *diag, const bla_integer *n, const bla_integer *k, const bla_dcomplex *a, const bla_integer *lda, bla_dcomplex *x, const bla_integer *incx)
+/* Subroutine */ 
+int PASTEF77S(z,tbsv)(const bla_character *uplo, const bla_character *trans, const bla_character *diag, const bla_integer *n, const bla_integer *k, const bla_dcomplex *a, const bla_integer *lda, bla_dcomplex *x, const bla_integer *incx)
 {
     /* System generated locals */
     bla_integer a_dim1, a_offset, i__1, i__2, i__3, i__4, i__5;
@@ -1447,9 +1519,9 @@
     bla_integer info;
     bla_dcomplex temp;
     bla_integer i__, j, l;
-    //extern bla_logical PASTEF770(lsame)(bla_character *, bla_character *, ftnlen, ftnlen);
+    //extern bla_logical PASTE_LSAME(bla_character *, bla_character *, ftnlen, ftnlen);
     bla_integer kplus1, ix, jx, kx = 0;
-    //extern /* Subroutine */ int PASTEF770(xerbla)(bla_character *, bla_integer *, ftnlen);
+    //extern /* Subroutine */ int PASTE_XERBLA(bla_character *, bla_integer *, ftnlen);
     bla_logical noconj, nounit;
 
 /*     .. Scalar Arguments .. */
@@ -1605,15 +1677,20 @@
     --x;
 
     /* Function Body */
+
+    // Initialize info_value to 0
+    gint_t info_value = 0;
+    bli_rntm_set_info_value_only( info_value, &tl_rntm );
+
     info = 0;
-    if (! PASTEF770(lsame)(uplo, "U", (ftnlen)1, (ftnlen)1) && ! PASTEF770(lsame)(uplo, "L", (
+    if (! PASTE_LSAME(uplo, "U", (ftnlen)1, (ftnlen)1) && ! PASTE_LSAME(uplo, "L", (
 	    ftnlen)1, (ftnlen)1)) {
 	info = 1;
-    } else if (! PASTEF770(lsame)(trans, "N", (ftnlen)1, (ftnlen)1) && ! PASTEF770(lsame)(trans, 
-	    "T", (ftnlen)1, (ftnlen)1) && ! PASTEF770(lsame)(trans, "C", (ftnlen)1, (
+    } else if (! PASTE_LSAME(trans, "N", (ftnlen)1, (ftnlen)1) && ! PASTE_LSAME(trans, 
+	    "T", (ftnlen)1, (ftnlen)1) && ! PASTE_LSAME(trans, "C", (ftnlen)1, (
 	    ftnlen)1)) {
 	info = 2;
-    } else if (! PASTEF770(lsame)(diag, "U", (ftnlen)1, (ftnlen)1) && ! PASTEF770(lsame)(diag, 
+    } else if (! PASTE_LSAME(diag, "U", (ftnlen)1, (ftnlen)1) && ! PASTE_LSAME(diag, 
 	    "N", (ftnlen)1, (ftnlen)1)) {
 	info = 3;
     } else if (*n < 0) {
@@ -1626,7 +1703,7 @@
 	info = 9;
     }
     if (info != 0) {
-	PASTEF770(xerbla)("ZTBSV ", &info, (ftnlen)6);
+	PASTE_XERBLA("ZTBSV ", &info, (ftnlen)6);
 	return 0;
     }
 
@@ -1636,8 +1713,8 @@
 	return 0;
     }
 
-    noconj = PASTEF770(lsame)(trans, "T", (ftnlen)1, (ftnlen)1);
-    nounit = PASTEF770(lsame)(diag, "N", (ftnlen)1, (ftnlen)1);
+    noconj = PASTE_LSAME(trans, "T", (ftnlen)1, (ftnlen)1);
+    nounit = PASTE_LSAME(diag, "N", (ftnlen)1, (ftnlen)1);
 
 /*     Set up the start point in X if the increment is not unity. This */
 /*     will be  ( N - 1 )*INCX  too small for descending loops. */
@@ -1651,16 +1728,20 @@
 /*     Start the operations. In this version the elements of A are */
 /*     accessed by sequentially with one pass through A. */
 
-    if (PASTEF770(lsame)(trans, "N", (ftnlen)1, (ftnlen)1)) {
+    if (PASTE_LSAME(trans, "N", (ftnlen)1, (ftnlen)1)) {
 
 /*        Form  x := inv( A )*x. */
 
-	if (PASTEF770(lsame)(uplo, "U", (ftnlen)1, (ftnlen)1)) {
+	if (PASTE_LSAME(uplo, "U", (ftnlen)1, (ftnlen)1)) {
 	    kplus1 = *k + 1;
 	    if (*incx == 1) {
 		for (j = *n; j >= 1; --j) {
 		    i__1 = j;
-		    if (bli_zreal(x[i__1]) != 0. || bli_zimag(x[i__1]) != 0.) {
+			//When matrix A is singular or near singular, the solution to Ax = b is non-trivial
+			//Therefore inverse of A doesn't exist. Here by commenting out the below lines, 
+			//we end up generating NAN or inf
+			//if (bli_zreal(x[i__1]) != 0. || bli_zimag(x[i__1]) != 0.) 
+			{
 			l = kplus1 - j;
 			if (nounit) {
 			    i__1 = j;
@@ -1690,7 +1771,11 @@
 		for (j = *n; j >= 1; --j) {
 		    kx -= *incx;
 		    i__1 = jx;
-		    if (bli_zreal(x[i__1]) != 0. || bli_zimag(x[i__1]) != 0.) {
+			//When matrix A is singular or near singular, the solution to Ax = b is non-trivial
+			//Therefore inverse of A doesn't exist. Here by commenting out the below lines, 
+			//we end up generating NAN or inf
+			//if (bli_zreal(x[i__1]) != 0. || bli_zimag(x[i__1]) != 0.) 
+			{
 			ix = kx;
 			l = kplus1 - j;
 			if (nounit) {
@@ -1723,7 +1808,11 @@
 		i__1 = *n;
 		for (j = 1; j <= i__1; ++j) {
 		    i__2 = j;
-		    if (bli_zreal(x[i__2]) != 0. || bli_zimag(x[i__2]) != 0.) {
+			//When matrix A is singular or near singular, the solution to Ax = b is non-trivial
+			//Therefore inverse of A doesn't exist. Here by commenting out the below lines, 
+			//we end up generating NAN or inf
+			//if (bli_zreal(x[i__2]) != 0. || bli_zimag(x[i__2]) != 0.) 
+			{
 			l = 1 - j;
 			if (nounit) {
 			    i__2 = j;
@@ -1753,7 +1842,11 @@
 		for (j = 1; j <= i__1; ++j) {
 		    kx += *incx;
 		    i__2 = jx;
-		    if (bli_zreal(x[i__2]) != 0. || bli_zimag(x[i__2]) != 0.) {
+			//When matrix A is singular or near singular, the solution to Ax = b is non-trivial
+			//Therefore inverse of A doesn't exist. Here by commenting out the below lines, 
+			//we end up generating NAN or inf
+			//if (bli_zreal(x[i__2]) != 0. || bli_zimag(x[i__2]) != 0.) 
+			{
 			ix = kx;
 			l = 1 - j;
 			if (nounit) {
@@ -1786,7 +1879,7 @@
 
 /*        Form  x := inv( A' )*x  or  x := inv( conjg( A') )*x. */
 
-	if (PASTEF770(lsame)(uplo, "U", (ftnlen)1, (ftnlen)1)) {
+	if (PASTE_LSAME(uplo, "U", (ftnlen)1, (ftnlen)1)) {
 	    kplus1 = *k + 1;
 	    if (*incx == 1) {
 		i__1 = *n;
@@ -1990,6 +2083,28 @@
 /*     End of ZTBSV . */
 
 } /* ztbsv_ */
+
+#ifdef BLIS_ENABLE_BLAS
+
+int PASTEF77(s,tbsv)(const bla_character *uplo, const bla_character *trans, const bla_character *diag, const bla_integer *n, const bla_integer *k, const bla_real *a, const bla_integer *lda, bla_real *x, const bla_integer *incx)
+{
+  return PASTEF77S(s,tbsv)( uplo, trans, diag, n, k, a, lda, x, incx );
+}
+
+int PASTEF77(d,tbsv)(const bla_character *uplo, const bla_character *trans, const bla_character *diag, const bla_integer *n, const bla_integer *k, const bla_double *a, const bla_integer *lda, bla_double *x, const bla_integer *incx)
+{
+  return PASTEF77S(d,tbsv)( uplo, trans, diag, n, k, a, lda, x, incx );
+}
+
+int PASTEF77(c,tbsv)(const bla_character *uplo, const bla_character *trans, const bla_character *diag, const bla_integer *n, const bla_integer *k, const bla_scomplex *a, const bla_integer *lda, bla_scomplex *x, const bla_integer *incx)
+{
+  return PASTEF77S(c,tbsv)( uplo, trans, diag, n, k, a, lda, x, incx );
+}
+
+int PASTEF77(z,tbsv)(const bla_character *uplo, const bla_character *trans, const bla_character *diag, const bla_integer *n, const bla_integer *k, const bla_dcomplex *a, const bla_integer *lda, bla_dcomplex *x, const bla_integer *incx)
+{
+  return PASTEF77S(z,tbsv)( uplo, trans, diag, n, k, a, lda, x, incx );
+}
 
 #endif
 

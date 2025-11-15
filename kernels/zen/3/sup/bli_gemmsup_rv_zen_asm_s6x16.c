@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2020, Advanced Micro Devices, Inc.
+   Copyright (C) 2020 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -113,17 +113,19 @@ void bli_sgemmsup_rv_zen_asm_5x16
     begin_asm()
     
     vxorps(ymm4,  ymm4,  ymm4)
-    vxorps(ymm5,  ymm5,  ymm5)
-    vxorps(ymm6,  ymm6,  ymm6)
-    vxorps(ymm7,  ymm7,  ymm7)
-    vxorps(ymm8,  ymm8,  ymm8)
-    vxorps(ymm9,  ymm9,  ymm9)
-    vxorps(ymm10, ymm10, ymm10)
-    vxorps(ymm11, ymm11, ymm11)
-    vxorps(ymm12, ymm12, ymm12)
-    vxorps(ymm13, ymm13, ymm13)
-    vxorps(ymm14, ymm14, ymm14)
-    vxorps(ymm15, ymm15, ymm15)
+	vmovaps(ymm4, ymm5)
+	vmovaps(ymm4, ymm6)
+	vmovaps(ymm4, ymm7)
+	vmovaps(ymm4, ymm8)
+	vmovaps(ymm4, ymm9)
+	vmovaps(ymm4, ymm10)
+	vmovaps(ymm4, ymm11)
+	vmovaps(ymm4, ymm12)
+	vmovaps(ymm4, ymm13)
+	vmovaps(ymm4, ymm14)
+	vmovaps(ymm4, ymm15)
+
+
     mov(var(a), rax)                   // load address of a.
     mov(var(rs_a), r8)                 // load rs_a
     mov(var(cs_a), r9)                 // load cs_a
@@ -694,6 +696,7 @@ void bli_sgemmsup_rv_zen_asm_5x16
     vmovss(xmm14, mem(rdx, rax, 1))
 
     label(.SDONE)
+	vzeroupper()
 
     end_asm(
     : // output operands (none)
@@ -714,12 +717,16 @@ void bli_sgemmsup_rv_zen_asm_5x16
       [a_next] "m" (a_next),
       [b_next] "m" (b_next)*/
     : // register clobber list
-     "rax", "rbx", "rcx", "rdx", "rsi", "rdi", 
+     "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
      "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
      "xmm0", "xmm1", "xmm2", "xmm3",
      "xmm4", "xmm5", "xmm6", "xmm7",
      "xmm8", "xmm9", "xmm10", "xmm11",
      "xmm12", "xmm13", "xmm14", "xmm15",
+     "ymm0", "ymm1", "ymm2", "ymm3",
+     "ymm4", "ymm5", "ymm6", "ymm7",
+     "ymm8", "ymm9", "ymm10", "ymm11",
+     "ymm12", "ymm13", "ymm14", "ymm15",
      "memory"
     )
 }
@@ -758,19 +765,20 @@ void bli_sgemmsup_rv_zen_asm_4x16
     // -------------------------------------------------------------------------
 
     begin_asm()
-    
-    vxorps(ymm4,  ymm4,  ymm4)
-    vxorps(ymm5,  ymm5,  ymm5)
-    vxorps(ymm6,  ymm6,  ymm6)
-    vxorps(ymm7,  ymm7,  ymm7)
-    vxorps(ymm8,  ymm8,  ymm8)
-    vxorps(ymm9,  ymm9,  ymm9)
-    vxorps(ymm10, ymm10, ymm10)
-    vxorps(ymm11, ymm11, ymm11)
-    vxorps(ymm12, ymm12, ymm12)
-    vxorps(ymm13, ymm13, ymm13)
-    vxorps(ymm14, ymm14, ymm14)
-    vxorps(ymm15, ymm15, ymm15)
+
+	  vxorps(ymm4,  ymm4,  ymm4)
+	  vmovaps(ymm4, ymm5)
+	  vmovaps(ymm4, ymm6)
+	  vmovaps(ymm4, ymm7)
+	  vmovaps(ymm4, ymm8)
+	  vmovaps(ymm4, ymm9)
+	  vmovaps(ymm4, ymm10)
+	  vmovaps(ymm4, ymm11)
+	  vmovaps(ymm4, ymm12)
+	  vmovaps(ymm4, ymm13)
+	  vmovaps(ymm4, ymm14)
+	  vmovaps(ymm4, ymm15)
+
     mov(var(a), rax)                   // load address of a.
     mov(var(rs_a), r8)                 // load rs_a
     mov(var(cs_a), r9)                 // load cs_a
@@ -822,14 +830,14 @@ void bli_sgemmsup_rv_zen_asm_4x16
     prefetch(0, mem(rdx, rsi, 2, 3*8)) // prefetch c + 7*cs_c
 
     label(.SPOSTPFETCH)                // done prefetching c
-    
+
     mov(var(k_iter), rsi)              // i = k_iter;
     test(rsi, rsi)                     // check i via logical AND.
     je(.SCONSIDKLEFT)                  // if i == 0, jump to code that
                                       // contains the k_left loop.
-        
+
     label(.SLOOPKITER)                 // MAIN LOOP
-        
+
     // ---------------------------------- iteration 0
     vmovups(mem(rbx, 0*32), ymm0)
     vmovups(mem(rbx, 1*32), ymm1)
@@ -1188,7 +1196,8 @@ void bli_sgemmsup_rv_zen_asm_4x16
     vmovups(xmm2, mem(rcx, rsi, 4)) // store ( gamma07..gamma37 )
     
     label(.SDONE)
-    
+	vzeroupper()
+  
     end_asm(
     : // output operands (none)
     : // input operands
@@ -1208,12 +1217,16 @@ void bli_sgemmsup_rv_zen_asm_4x16
       [a_next] "m" (a_next),
       [b_next] "m" (b_next)*/
     : // register clobber list
-     "rax", "rbx", "rcx", "rdx", "rsi", "rdi", 
+     "rax", "rbx", "rcx", "rdx", "rsi", "rdi",
      "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
      "xmm0", "xmm1", "xmm2", "xmm3",
      "xmm4", "xmm5", "xmm6", "xmm7",
      "xmm8", "xmm9", "xmm10", "xmm11",
      "xmm12", "xmm13", "xmm14", "xmm15",
+     "ymm0", "ymm1", "ymm2", "ymm3",
+     "ymm4", "ymm5", "ymm6", "ymm7",
+     "ymm8", "ymm9", "ymm10", "ymm11",
+     "ymm12", "ymm13", "ymm14", "ymm15",
      "memory"
     )
 }
@@ -1252,19 +1265,20 @@ void bli_sgemmsup_rv_zen_asm_3x16
     // -------------------------------------------------------------------------
 
     begin_asm()
-    
-    vxorps(ymm4,  ymm4,  ymm4)
-    vxorps(ymm5,  ymm5,  ymm5)
-    vxorps(ymm6,  ymm6,  ymm6)
-    vxorps(ymm7,  ymm7,  ymm7)
-    vxorps(ymm8,  ymm8,  ymm8)
-    vxorps(ymm9,  ymm9,  ymm9)
-    vxorps(ymm10, ymm10, ymm10)
-    vxorps(ymm11, ymm11, ymm11)
-    vxorps(ymm12, ymm12, ymm12)
-    vxorps(ymm13, ymm13, ymm13)
-    vxorps(ymm14, ymm14, ymm14)
-    vxorps(ymm15, ymm15, ymm15)
+
+	  vxorps(ymm4,  ymm4,  ymm4)
+	  vmovaps(ymm4, ymm5)
+	  vmovaps(ymm4, ymm6)
+	  vmovaps(ymm4, ymm7)
+	  vmovaps(ymm4, ymm8)
+	  vmovaps(ymm4, ymm9)
+	  vmovaps(ymm4, ymm10)
+	  vmovaps(ymm4, ymm11)
+	  vmovaps(ymm4, ymm12)
+	  vmovaps(ymm4, ymm13)
+	  vmovaps(ymm4, ymm14)
+	  vmovaps(ymm4, ymm15)
+  
     mov(var(a), rax)                   // load address of a.
     mov(var(rs_a), r8)                 // load rs_a
     mov(var(cs_a), r9)                 // load cs_a
@@ -1746,6 +1760,7 @@ void bli_sgemmsup_rv_zen_asm_3x16
     vmovss(xmm14, mem(rdx, rax, 1))        
 
     label(.SDONE)
+	vzeroupper()
     
     end_asm(
     : // output operands (none)
@@ -1772,6 +1787,10 @@ void bli_sgemmsup_rv_zen_asm_3x16
      "xmm4", "xmm5", "xmm6", "xmm7",
      "xmm8", "xmm9", "xmm10", "xmm11",
      "xmm12", "xmm13", "xmm14", "xmm15",
+     "ymm0", "ymm1", "ymm2", "ymm3",
+     "ymm4", "ymm5", "ymm6", "ymm7",
+     "ymm8", "ymm9", "ymm10", "ymm11",
+     "ymm12", "ymm13", "ymm14", "ymm15",
      "memory"
     )
 }
@@ -2165,6 +2184,10 @@ void bli_sgemmsup_rv_zen_asm_2x16
      "xmm4", "xmm5", "xmm6", "xmm7",
      "xmm8", "xmm9", "xmm10", "xmm11",
      "xmm12", "xmm13", "xmm14", "xmm15",
+     "ymm0", "ymm1", "ymm2", "ymm3",
+     "ymm4", "ymm5", "ymm6", "ymm7",
+     "ymm8", "ymm9", "ymm10", "ymm11",
+     "ymm12", "ymm13", "ymm14", "ymm15",
      "memory"
     )
 }
@@ -2479,6 +2502,7 @@ void bli_sgemmsup_rv_zen_asm_1x16
     vmovss(xmm1, mem(rcx, rsi, 1))
     vmovss(xmm2, mem(rcx, rsi, 2))
     vmovss(xmm14, mem(rcx, rax, 1))
+    lea(mem(rcx, rsi, 4), rcx) // rcx += cs_c        
     vextractf128(imm(0x0), ymm5, xmm0)//c0-c3
     vshufps(imm(0x01), xmm0, xmm0,xmm1)
     vshufps(imm(0x02), xmm0, xmm0,xmm2)
@@ -2525,6 +2549,10 @@ void bli_sgemmsup_rv_zen_asm_1x16
      "xmm4", "xmm5", "xmm6", "xmm7",
      "xmm8", "xmm9", "xmm10", "xmm11",
      "xmm12", "xmm13", "xmm14", "xmm15",
+     "ymm0", "ymm1", "ymm2", "ymm3",
+     "ymm4", "ymm5", "ymm6", "ymm7",
+     "ymm8", "ymm9", "ymm10", "ymm11",
+     "ymm12", "ymm13", "ymm14", "ymm15",
      "memory"
     )
 }
@@ -2973,6 +3001,10 @@ void bli_sgemmsup_rv_zen_asm_6x8
      "xmm4", "xmm5", "xmm6", "xmm7",
      "xmm8", "xmm9", "xmm10", "xmm11",
      "xmm12", "xmm13", "xmm14", "xmm15",
+     "ymm0", "ymm1", "ymm2", "ymm3",
+     "ymm4", "ymm5", "ymm6", "ymm7",
+     "ymm8", "ymm9", "ymm10", "ymm11",
+     "ymm12", "ymm13", "ymm14", "ymm15",
      "memory"
     )
 }
@@ -3426,6 +3458,10 @@ void bli_sgemmsup_rv_zen_asm_5x8
      "xmm4", "xmm5", "xmm6", "xmm7",
      "xmm8", "xmm9", "xmm10", "xmm11",
      "xmm12", "xmm13", "xmm14", "xmm15",
+     "ymm0", "ymm1", "ymm2", "ymm3",
+     "ymm4", "ymm5", "ymm6", "ymm7",
+     "ymm8", "ymm9", "ymm10", "ymm11",
+     "ymm12", "ymm13", "ymm14", "ymm15",
      "memory"
     )
 }
@@ -3792,6 +3828,10 @@ void bli_sgemmsup_rv_zen_asm_4x8
      "xmm4", "xmm5", "xmm6", "xmm7",
      "xmm8", "xmm9", "xmm10", "xmm11",
      "xmm12", "xmm13", "xmm14", "xmm15",
+     "ymm0", "ymm1", "ymm2", "ymm3",
+     "ymm4", "ymm5", "ymm6", "ymm7",
+     "ymm8", "ymm9", "ymm10", "ymm11",
+     "ymm12", "ymm13", "ymm14", "ymm15",
      "memory"
     )
 }
@@ -4124,33 +4164,16 @@ void bli_sgemmsup_rv_zen_asm_3x8
     
     vshufpd(imm(0x01), xmm0, xmm0, xmm1)//a1b1
     vshufpd(imm(0x01), xmm2, xmm2, xmm10)//a3b3    
-    vmovsd(mem(rcx),xmm4)
-    vmovsd(mem(rcx, rsi, 1),xmm6)    
-    vfmadd231ps(xmm4, xmm3, xmm0)
-    vfmadd231ps(xmm6, xmm3, xmm1)
     vmovsd(xmm0, mem(rcx)) // store ( gamma00..gamma10 )
     vmovsd(xmm1, mem(rcx, rsi, 1)) // store ( gamma01..gamma11 )    
-    vmovsd(mem(rcx, rsi, 2),xmm4)
-    vmovsd(mem(rcx, rax, 1),xmm6)
-    vfmadd231ps(xmm4, xmm3, xmm2)
-    vfmadd231ps(xmm6, xmm3, xmm10)    
     vmovsd(xmm2, mem(rcx, rsi, 2)) // store ( gamma02..gamma12 )
     vmovsd(xmm10, mem(rcx, rax, 1)) // store ( gamma03..gamma13 )
     lea(mem(rcx, rsi, 4), rcx) // rcx += cs_c
     
     vshufpd(imm(0x01), xmm11, xmm11, xmm1)//a1b1
     vshufpd(imm(0x01), xmm12, xmm12, xmm10)//a3b3        
-    vmovsd(mem(rcx),xmm4)
-    vmovsd(mem(rcx, rsi, 1),xmm6)    
-    vfmadd231ps(xmm4, xmm3, xmm11)
-    vfmadd231ps(xmm6, xmm3, xmm1)
     vmovsd(xmm11, mem(rcx)) // store ( gamma00..gamma10 )
     vmovsd(xmm1, mem(rcx, rsi, 1)) // store ( gamma01..gamma11 )    
-    
-    vmovsd(mem(rcx, rsi, 2),xmm4)
-    vmovsd(mem(rcx, rax, 1),xmm6)
-    vfmadd231ps(xmm4, xmm3, xmm12)
-    vfmadd231ps(xmm6, xmm3, xmm10)
     vmovsd(xmm12, mem(rcx, rsi, 2)) // store ( gamma02..gamma12 )
     vmovsd(xmm10, mem(rcx, rax, 1)) // store ( gamma03..gamma13 )    
     
@@ -4204,6 +4227,10 @@ void bli_sgemmsup_rv_zen_asm_3x8
      "xmm4", "xmm5", "xmm6", "xmm7",
      "xmm8", "xmm9", "xmm10", "xmm11",
      "xmm12", "xmm13", "xmm14", "xmm15",
+     "ymm0", "ymm2", "ymm3",
+     "ymm4", "ymm5", "ymm6", "ymm7",
+     "ymm8", "ymm9", "ymm10", "ymm11",
+     "ymm12", "ymm13", "ymm14", "ymm15",
      "memory"
     )
 }
@@ -4473,33 +4500,16 @@ void bli_sgemmsup_rv_zen_asm_2x8
     
     vshufpd(imm(0x01), xmm0, xmm0, xmm1)//a1b1
     vshufpd(imm(0x01), xmm2, xmm2, xmm10)//a3b3    
-    vmovsd(mem(rcx),xmm4)
-    vmovsd(mem(rcx, rsi, 1),xmm6)    
-    vfmadd231ps(xmm4, xmm3, xmm0)
-    vfmadd231ps(xmm6, xmm3, xmm1)
     vmovsd(xmm0, mem(rcx)) // store ( gamma00..gamma10 )
     vmovsd(xmm1, mem(rcx, rsi, 1)) // store ( gamma01..gamma11 )    
-    vmovsd(mem(rcx, rsi, 2),xmm4)
-    vmovsd(mem(rcx, rax, 1),xmm6)
-    vfmadd231ps(xmm4, xmm3, xmm2)
-    vfmadd231ps(xmm6, xmm3, xmm10)    
     vmovsd(xmm2, mem(rcx, rsi, 2)) // store ( gamma02..gamma12 )
     vmovsd(xmm10, mem(rcx, rax, 1)) // store ( gamma03..gamma13 )
     lea(mem(rcx, rsi, 4), rcx) // rcx += cs_c
     
     vshufpd(imm(0x01), xmm11, xmm11, xmm1)//a1b1
     vshufpd(imm(0x01), xmm12, xmm12, xmm10)//a3b3        
-    vmovsd(mem(rcx),xmm4)
-    vmovsd(mem(rcx, rsi, 1),xmm6)    
-    vfmadd231ps(xmm4, xmm3, xmm11)
-    vfmadd231ps(xmm6, xmm3, xmm1)
     vmovsd(xmm11, mem(rcx)) // store ( gamma00..gamma10 )
     vmovsd(xmm1, mem(rcx, rsi, 1)) // store ( gamma01..gamma11 )    
-    
-    vmovsd(mem(rcx, rsi, 2),xmm4)
-    vmovsd(mem(rcx, rax, 1),xmm6)
-    vfmadd231ps(xmm4, xmm3, xmm12)
-    vfmadd231ps(xmm6, xmm3, xmm10)
     vmovsd(xmm12, mem(rcx, rsi, 2)) // store ( gamma02..gamma12 )
     vmovsd(xmm10, mem(rcx, rax, 1)) // store ( gamma03..gamma13 )
 
@@ -4530,6 +4540,10 @@ void bli_sgemmsup_rv_zen_asm_2x8
      "xmm4", "xmm5", "xmm6", "xmm7",
      "xmm8", "xmm9", "xmm10", "xmm11",
      "xmm12", "xmm13", "xmm14", "xmm15",
+     "ymm0", "ymm2", "ymm3",
+     "ymm4", "ymm5", "ymm6", "ymm7",
+     "ymm8", "ymm9", "ymm10", "ymm11",
+     "ymm12", "ymm13", "ymm14", "ymm15",
      "memory"
     )
 }
@@ -4793,6 +4807,10 @@ void bli_sgemmsup_rv_zen_asm_1x8
      "xmm4", "xmm5", "xmm6", "xmm7",
      "xmm8", "xmm9", "xmm10", "xmm11",
      "xmm12", "xmm13", "xmm14", "xmm15",
+     "ymm0", "ymm2", "ymm3",
+     "ymm4", "ymm5", "ymm6", "ymm7",
+     "ymm8", "ymm9", "ymm10", "ymm11",
+     "ymm12", "ymm13", "ymm14", "ymm15",
      "memory"
     )
 }
@@ -5194,6 +5212,10 @@ void bli_sgemmsup_rv_zen_asm_6x4
      "xmm4", "xmm5", "xmm6", "xmm7",
      "xmm8", "xmm9", "xmm10", "xmm11",
      "xmm12", "xmm13", "xmm14", "xmm15",
+     "ymm0", "ymm3",
+     "ymm4", "ymm5", "ymm6", "ymm7",
+     "ymm8", "ymm9", "ymm10", "ymm11",
+     "ymm12", "ymm13", "ymm14", "ymm15",
      "memory"
     )
 }
@@ -5582,6 +5604,10 @@ void bli_sgemmsup_rv_zen_asm_5x4
      "xmm4", "xmm5", "xmm6", "xmm7",
      "xmm8", "xmm9", "xmm10", "xmm11",
      "xmm12", "xmm13", "xmm14", "xmm15",
+     "ymm0", "ymm3",
+     "ymm4", "ymm5", "ymm6", "ymm7",
+     "ymm8", "ymm9", "ymm10", "ymm11",
+     "ymm12", "ymm13", "ymm14", "ymm15",
      "memory"
     )
 }
@@ -5920,6 +5946,9 @@ void bli_sgemmsup_rv_zen_asm_4x4
      "xmm4", "xmm5", "xmm6", "xmm7",
      "xmm8", "xmm9", "xmm10", "xmm11",
      "xmm12", "xmm13", "xmm14", "xmm15",
+     "ymm4", "ymm5", "ymm6", "ymm7",
+     "ymm8", "ymm9", "ymm10", "ymm11",
+     "ymm12", "ymm13", "ymm14", "ymm15",
      "memory"
     )
 }
@@ -6245,6 +6274,9 @@ void bli_sgemmsup_rv_zen_asm_3x4
      "xmm4", "xmm5", "xmm6", "xmm7",
      "xmm8", "xmm9", "xmm10", "xmm11",
      "xmm12", "xmm13", "xmm14", "xmm15",
+     "ymm4", "ymm5", "ymm6", "ymm7",
+     "ymm8", "ymm9", "ymm10", "ymm11",
+     "ymm12", "ymm13", "ymm14", "ymm15",
      "memory"
     )
 }
@@ -6518,6 +6550,9 @@ void bli_sgemmsup_rv_zen_asm_2x4
      "xmm4", "xmm5", "xmm6", "xmm7",
      "xmm8", "xmm9", "xmm10", "xmm11",
      "xmm12", "xmm13", "xmm14", "xmm15",
+     "ymm4", "ymm5", "ymm6", "ymm7",
+     "ymm8", "ymm9", "ymm10", "ymm11",
+     "ymm12", "ymm13", "ymm14", "ymm15",
      "memory"
     )
 }
@@ -6772,6 +6807,10 @@ void bli_sgemmsup_rv_zen_asm_1x4
      "xmm4", "xmm5", "xmm6", "xmm7",
      "xmm8", "xmm9", "xmm10", "xmm11",
      "xmm12", "xmm13", "xmm14", "xmm15",
+     "ymm0", "ymm3", "ymm4", "ymm5",
+     "ymm6", "ymm7", "ymm8", "ymm9",
+     "ymm10", "ymm11", "ymm12", "ymm13",
+     "ymm14", "ymm15",
      "memory"
     )
 }
@@ -6879,7 +6918,7 @@ void bli_sgemmsup_rv_zen_asm_6x2
     
     
     // ---------------------------------- iteration 0
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), xmm2)
@@ -6900,7 +6939,7 @@ void bli_sgemmsup_rv_zen_asm_6x2
 
     
     // ---------------------------------- iteration 1
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), xmm2)
@@ -6921,7 +6960,7 @@ void bli_sgemmsup_rv_zen_asm_6x2
     
 
     // ---------------------------------- iteration 2
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), xmm2)
@@ -6942,7 +6981,7 @@ void bli_sgemmsup_rv_zen_asm_6x2
     
 
     // ---------------------------------- iteration 3
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), xmm2)
@@ -6975,7 +7014,7 @@ void bli_sgemmsup_rv_zen_asm_6x2
     
     label(.SLOOPKLEFT)                 // EDGE LOOP
     
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), xmm2)
@@ -7159,6 +7198,9 @@ void bli_sgemmsup_rv_zen_asm_6x2
      "xmm4", "xmm5", "xmm6", "xmm7",
      "xmm8", "xmm9", "xmm10", "xmm11",
      "xmm12", "xmm13", "xmm14", "xmm15",
+     "ymm4", "ymm5", "ymm6", "ymm7",
+     "ymm8", "ymm9", "ymm10", "ymm11",
+     "ymm12", "ymm13", "ymm14", "ymm15",
      "memory"
     )
 }
@@ -7263,7 +7305,7 @@ void bli_sgemmsup_rv_zen_asm_5x2
     label(.SLOOPKITER)                 // MAIN LOOP
     
     // ---------------------------------- iteration 0
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), xmm2)
@@ -7282,7 +7324,7 @@ void bli_sgemmsup_rv_zen_asm_5x2
 
     
     // ---------------------------------- iteration 1
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), xmm2)
@@ -7301,7 +7343,7 @@ void bli_sgemmsup_rv_zen_asm_5x2
 
 
     // ---------------------------------- iteration 2
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), xmm2)
@@ -7320,7 +7362,7 @@ void bli_sgemmsup_rv_zen_asm_5x2
 
     
     // ---------------------------------- iteration 3
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), xmm2)
@@ -7351,7 +7393,7 @@ void bli_sgemmsup_rv_zen_asm_5x2
     
     label(.SLOOPKLEFT)                 // EDGE LOOP
     
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), xmm2)
@@ -7532,6 +7574,9 @@ void bli_sgemmsup_rv_zen_asm_5x2
      "xmm4", "xmm5", "xmm6", "xmm7",
      "xmm8", "xmm9", "xmm10", "xmm11",
      "xmm12", "xmm13", "xmm14", "xmm15",
+     "ymm4", "ymm5", "ymm6", "ymm7",
+     "ymm8", "ymm9", "ymm10", "ymm11",
+     "ymm12", "ymm13", "ymm14", "ymm15",
      "memory"
     )
 }
@@ -7638,7 +7683,7 @@ void bli_sgemmsup_rv_zen_asm_4x2
     label(.SLOOPKITER)                 // MAIN LOOP
     
     // ---------------------------------- iteration 0
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), ymm2)
@@ -7653,7 +7698,7 @@ void bli_sgemmsup_rv_zen_asm_4x2
     vfmadd231ps(xmm0, xmm3, xmm10)
 
     // ---------------------------------- iteration 1
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), ymm2)
@@ -7668,7 +7713,7 @@ void bli_sgemmsup_rv_zen_asm_4x2
     vfmadd231ps(xmm0, xmm3, xmm10)
     
     // ---------------------------------- iteration 2
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), ymm2)
@@ -7683,7 +7728,7 @@ void bli_sgemmsup_rv_zen_asm_4x2
     vfmadd231ps(xmm0, xmm3, xmm10)
     
     // ---------------------------------- iteration 3
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), ymm2)
@@ -7711,7 +7756,7 @@ void bli_sgemmsup_rv_zen_asm_4x2
     
     label(.SLOOPKLEFT)                 // EDGE LOOP
     
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
     
     vbroadcastss(mem(rax        ), ymm2)
@@ -7868,6 +7913,10 @@ void bli_sgemmsup_rv_zen_asm_4x2
      "xmm4", "xmm5", "xmm6", "xmm7",
      "xmm8", "xmm9", "xmm10", "xmm11",
      "xmm12", "xmm13", "xmm14", "xmm15",
+     "ymm0", "ymm2", "ymm3",
+     "ymm4", "ymm5", "ymm6", "ymm7",
+     "ymm8", "ymm9", "ymm10", "ymm11",
+     "ymm12", "ymm13", "ymm14", "ymm15",
      "memory"
     )
 }
@@ -7966,7 +8015,7 @@ void bli_sgemmsup_rv_zen_asm_3x2
     label(.SLOOPKITER)                 // MAIN LOOP
         
     // ---------------------------------- iteration 0
-    vmovups(mem(rbx, 0*32), xmm0)
+    vmovsd(mem(rbx, 0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), ymm2)
@@ -7979,7 +8028,7 @@ void bli_sgemmsup_rv_zen_asm_3x2
     vfmadd231ps(xmm0, xmm2, xmm8)    
     
     // ---------------------------------- iteration 1
-    vmovups(mem(rbx, 0*32), xmm0)
+    vmovsd(mem(rbx, 0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), ymm2)
@@ -7992,7 +8041,7 @@ void bli_sgemmsup_rv_zen_asm_3x2
     vfmadd231ps(xmm0, xmm2, xmm8)    
 
     // ---------------------------------- iteration 2
-    vmovups(mem(rbx, 0*32), xmm0)
+    vmovsd(mem(rbx, 0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), ymm2)
@@ -8005,7 +8054,7 @@ void bli_sgemmsup_rv_zen_asm_3x2
     vfmadd231ps(xmm0, xmm2, xmm8)    
 
     // ---------------------------------- iteration 3
-    vmovups(mem(rbx, 0*32), xmm0)
+    vmovsd(mem(rbx, 0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), ymm2)
@@ -8031,7 +8080,7 @@ void bli_sgemmsup_rv_zen_asm_3x2
         
     label(.SLOOPKLEFT)                 // EDGE LOOP
     
-    vmovups(mem(rbx, 0*32), xmm0)
+    vmovsd(mem(rbx, 0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), ymm2)
@@ -8074,15 +8123,18 @@ void bli_sgemmsup_rv_zen_asm_3x2
 
     label(.SROWSTORED)
         
-    vfmadd231ps(mem(rcx), xmm3, xmm4)
+    vmovsd(mem(rcx), xmm0)////a0a1
+    vfmadd231ps(xmm0, xmm3, xmm4)
     vmovsd(xmm4, mem(rcx))
     add(rdi, rcx)
 
-    vfmadd231ps(mem(rcx), xmm3, xmm6)
+    vmovsd(mem(rcx), xmm0)////a0a1
+    vfmadd231ps(xmm0, xmm3, xmm6)
     vmovsd(xmm6, mem(rcx))
     add(rdi, rcx)
 
-    vfmadd231ps(mem(rcx), xmm3, xmm8)
+    vmovsd(mem(rcx), xmm0)////a0a1
+    vfmadd231ps(xmm0, xmm3, xmm8)
     vmovsd(xmm8, mem(rcx))
     
     jmp(.SDONE)                        // jump to end.
@@ -8167,6 +8219,10 @@ void bli_sgemmsup_rv_zen_asm_3x2
      "xmm4", "xmm5", "xmm6", "xmm7",
      "xmm8", "xmm9", "xmm10", "xmm11",
      "xmm12", "xmm13", "xmm14", "xmm15",
+     "ymm0", "ymm2", "ymm3",
+     "ymm4", "ymm5", "ymm6", "ymm7",
+     "ymm8", "ymm9", "ymm10", "ymm11",
+     "ymm12", "ymm13", "ymm14", "ymm15",
      "memory"
     )
 }
@@ -8268,7 +8324,7 @@ void bli_sgemmsup_rv_zen_asm_2x2
     
     
     // ---------------------------------- iteration 0
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
     vbroadcastss(mem(rax        ), ymm2)
     vbroadcastss(mem(rax, r8,  1), ymm3)
@@ -8277,7 +8333,7 @@ void bli_sgemmsup_rv_zen_asm_2x2
     vfmadd231ps(xmm0, xmm3, xmm6)
 
     // ---------------------------------- iteration 1
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
     vbroadcastss(mem(rax        ), ymm2)
     vbroadcastss(mem(rax, r8,  1), ymm3)
@@ -8286,7 +8342,7 @@ void bli_sgemmsup_rv_zen_asm_2x2
     vfmadd231ps(xmm0, xmm3, xmm6)
     
     // ---------------------------------- iteration 2
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
     
     vbroadcastss(mem(rax        ), ymm2)
@@ -8296,7 +8352,7 @@ void bli_sgemmsup_rv_zen_asm_2x2
     vfmadd231ps(xmm0, xmm3, xmm6)
 
     // ---------------------------------- iteration 3
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
     
     vbroadcastss(mem(rax        ), ymm2)
@@ -8317,7 +8373,7 @@ void bli_sgemmsup_rv_zen_asm_2x2
     
     label(.SLOOPKLEFT)                 // EDGE LOOP
     
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
     
     vbroadcastss(mem(rax        ), ymm2)
@@ -8355,11 +8411,13 @@ void bli_sgemmsup_rv_zen_asm_2x2
     label(.SROWSTORED)
         
 
-    vfmadd231ps(mem(rcx), xmm3, xmm4)
+    vmovsd(mem(rcx), xmm0)////a0a1
+    vfmadd231ps(xmm0, xmm3, xmm4)
     vmovsd(xmm4, mem(rcx))
     add(rdi, rcx)
         
-    vfmadd231ps(mem(rcx), xmm3, xmm6)
+    vmovsd(mem(rcx), xmm0)////a0a1
+    vfmadd231ps(xmm0, xmm3, xmm6)
     vmovsd(xmm6, mem(rcx))
     
     jmp(.SDONE)                        // jump to end.
@@ -8427,6 +8485,10 @@ void bli_sgemmsup_rv_zen_asm_2x2
      "xmm4", "xmm5", "xmm6", "xmm7",
      "xmm8", "xmm9", "xmm10", "xmm11",
      "xmm12", "xmm13", "xmm14", "xmm15",
+     "ymm0", "ymm2", "ymm3",
+     "ymm4", "ymm5", "ymm6", "ymm7",
+     "ymm8", "ymm9", "ymm10", "ymm11",
+     "ymm12", "ymm13", "ymm14", "ymm15",
      "memory"
     )
 }
@@ -8524,7 +8586,7 @@ void bli_sgemmsup_rv_zen_asm_1x2
     label(.SLOOPKITER)                 // MAIN LOOP
     
     // ---------------------------------- iteration 0
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), ymm2)
@@ -8532,7 +8594,7 @@ void bli_sgemmsup_rv_zen_asm_1x2
     vfmadd231ps(xmm0, xmm2, xmm4)
     
     // ---------------------------------- iteration 1
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), ymm2)
@@ -8541,7 +8603,7 @@ void bli_sgemmsup_rv_zen_asm_1x2
     
     
     // ---------------------------------- iteration 2
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), ymm2)
@@ -8549,7 +8611,7 @@ void bli_sgemmsup_rv_zen_asm_1x2
     vfmadd231ps(xmm0, xmm2, xmm4)
 
     // ---------------------------------- iteration 3
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), ymm2)
@@ -8569,7 +8631,7 @@ void bli_sgemmsup_rv_zen_asm_1x2
     
     label(.SLOOPKLEFT)                 // EDGE LOOP
     
-    vmovups(mem(rbx,  0*32), xmm0)
+    vmovsd(mem(rbx,  0*32), xmm0)
     add(r10, rbx)                      // b += rs_b;
 
     vbroadcastss(mem(rax        ), xmm2)
@@ -8603,7 +8665,8 @@ void bli_sgemmsup_rv_zen_asm_1x2
 
     label(.SROWSTORED)
     
-    vfmadd231ps(mem(rcx), xmm3, xmm4)
+    vmovsd(mem(rcx), xmm0)
+    vfmadd231ps(xmm0, xmm3, xmm4)
     vmovsd(xmm4, mem(rcx))
 
     jmp(.SDONE)                        // jump to end.
@@ -8663,6 +8726,10 @@ void bli_sgemmsup_rv_zen_asm_1x2
      "xmm4", "xmm5", "xmm6", "xmm7",
      "xmm8", "xmm9", "xmm10", "xmm11",
      "xmm12", "xmm13", "xmm14", "xmm15",
+     "ymm0", "ymm2","ymm4", "ymm5",
+     "ymm6", "ymm7", "ymm8", "ymm9",
+     "ymm10", "ymm11", "ymm12", "ymm13",
+     "ymm14", "ymm15",
      "memory"
     )
 }

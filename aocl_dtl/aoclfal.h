@@ -1,10 +1,10 @@
 /*===================================================================
  * File Name :  aoclfal.h
  * 
- * Description : Interfaces for platform/os independed file 
+ * Description : Interfaces for platform/os independent file 
  *               handling API's
  *
- * Copyright (C) 2020, Advanced Micro Devices, Inc
+ * Copyright (C) 2020 - 2024, Advanced Micro Devices, Inc. All rights reserved.
  * 
  *==================================================================*/
 

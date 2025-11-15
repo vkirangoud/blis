@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2018 - 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -59,13 +59,22 @@ double bli_clock_min_diff( double time_min, double time_start )
 	// - under a nanosecond
 	// is actually garbled due to the clocks being taken too closely together.
 	if      ( time_min <= 0.0    ) time_min = time_min_prev;
-        // To genuinely measure time for an application taking more than an hour, the below
-	// line is commented. If wrongly measuring higher time we could always use previous_min.
-	/* else if ( time_min >  3600.0 ) time_min = time_min_prev; */
 	else if ( time_min <  1.0e-9 ) time_min = time_min_prev;
 
 	return time_min;
 }
+
+#ifdef BLIS_DISABLE_SYSTEM
+// --- Begin systemless definitions --------------------------------------------
+
+double bli_clock_helper()
+{
+    return 0.0;
+}
+
+// --- End systemless definitions ----------------------------------------------
+#else
+// --- Begin system definitions ------------------------------------------------
 
 #if BLIS_OS_WINDOWS
 // --- Begin Windows build definitions -----------------------------------------
@@ -136,5 +145,8 @@ double bli_clock_helper()
 }
 
 // --- End Linux build definitions ---------------------------------------------
+#endif
+
+// --- End system definitions --------------------------------------------------
 #endif
 

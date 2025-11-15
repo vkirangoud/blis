@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2018 - 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2025, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -42,9 +42,9 @@ thrcomm_t BLIS_SINGLE_COMM           = {};
 // The global rntm_t structure. (The definition resides in bli_rntm.c.)
 extern rntm_t global_rntm;
 
-// A mutex to allow synchronous access to global_rntm. (The definition
-// resides in bli_rntm.c.)
-extern bli_pthread_mutex_t global_rntm_mutex;
+// Make thread settings local to each thread calling BLIS routines.
+// (The definition resides in bli_rntm.c.)
+extern BLIS_THREAD_LOCAL rntm_t tl_rntm;
 
 // -----------------------------------------------------------------------------
 
@@ -54,12 +54,24 @@ void bli_thread_init( void )
 	bli_packm_thrinfo_init_single( &BLIS_PACKM_SINGLE_THREADED );
 	bli_l3_thrinfo_init_single( &BLIS_GEMM_SINGLE_THREADED );
 
-	// Read the environment variables and use them to initialize the
-	// global runtime object.
+	// Read the BLIS environment variables and (optionally) OpenMP ICVs and
+	// use them to initialize the global runtime object.
+	// The thread local global runtime object will be initialized from this
+	// to ensure all thread local get information from any BLIS environment
+	// variables set, as these are not re-read for performance reasons.
 	bli_thread_init_rntm_from_env( &global_rntm );
 }
 
+void bli_thread_init_tl( void )
+{
+	bli_thread_init_rntm_from_global_rntm( &tl_rntm );
+}
+
 void bli_thread_finalize( void )
+{
+}
+
+void bli_thread_finalize_tl( void )
 {
 }
 
@@ -70,7 +82,7 @@ void bli_thread_range_sub
        thrinfo_t* thread,
        dim_t      n,
        dim_t      bf,
-       bool_t     handle_edge_low,
+       bool       handle_edge_low,
        dim_t*     start,
        dim_t*     end
      )
@@ -94,7 +106,7 @@ void bli_thread_range_sub
 
 	// In this function, we partition the space between all_start and
 	// all_end into n_way partitions, each a multiple of block_factor
-	// with the exception of the one partition that recieves the
+	// with the exception of the one partition that receives the
 	// "edge" case (if applicable).
 	//
 	// Here are examples of various thread partitionings, in units of
@@ -108,7 +120,7 @@ void bli_thread_range_sub
 	//         13     >0    f        1    3      4     3     3     3+
 	//         14     >0    f        2    2      4     4     3     3+
 	//         15     >0    f        3    1      4     4     4     3+
-	//         15     =0    f        3    1      4     4     4     3 
+	//         15     =0    f        3    1      4     4     4     3
 	//
 	//         12     =0    t        4    0      3     3     3     3
 	//         12     >0    t        4    0      3+    3     3     3
@@ -301,7 +313,7 @@ dim_t bli_thread_range_width_l
        dim_t  bf,
        dim_t  bf_left,
        double area_per_thr,
-       bool_t handle_edge_low
+       bool   handle_edge_low
      )
 {
 	dim_t width;
@@ -510,7 +522,7 @@ siz_t bli_thread_range_weighted_sub
        dim_t               m,
        dim_t               n,
        dim_t               bf,
-       bool_t              handle_edge_low,
+       bool                handle_edge_low,
        dim_t*     restrict j_start_thr,
        dim_t*     restrict j_end_thr
      )
@@ -654,6 +666,7 @@ siz_t bli_thread_range_mdim
 {
 	bszid_t  bszid  = bli_cntl_bszid( cntl );
 	opid_t   family = bli_cntl_family( cntl );
+	blksz_t* bmult;
 
 	// This is part of trsm's current implementation, whereby right side
 	// cases are implemented in left-side micro-kernels, which requires
@@ -661,13 +674,22 @@ siz_t bli_thread_range_mdim
 	// packing A and B.
 	if ( family == BLIS_TRSM )
 	{
+		bmult = bli_cntx_get_trsm_bmult( bszid, cntx);
+		// if trsm blockszs are not set then use global blockszs
+		if (bli_blksz_get_def( bli_obj_dt( a ) , bmult ) == 0)
+		{
+			bmult  = bli_cntx_get_bmult( bszid, cntx );
+		}
 		if ( bli_obj_root_is_triangular( a ) ) bszid = BLIS_MR;
 		else                                   bszid = BLIS_NR;
 	}
+	else
+	{
+		bmult  = bli_cntx_get_bmult( bszid, cntx );
+	}
 
-	blksz_t* bmult  = bli_cntx_get_bmult( bszid, cntx );
 	obj_t*   x;
-	bool_t   use_weighted;
+	bool     use_weighted;
 
 	// Use the operation family to choose the one of the two matrices
 	// being partitioned that potentially has structure, and also to
@@ -679,6 +701,7 @@ siz_t bli_thread_range_mdim
 	// that will be dense and full (after packing).
 	if      ( family == BLIS_GEMM ) { x = a; use_weighted = FALSE; }
 	else if ( family == BLIS_HERK ) { x = c; use_weighted = TRUE;  }
+	else if ( family == BLIS_GEMMT ) { x = c; use_weighted = TRUE;  }
 	else if ( family == BLIS_TRMM ) { x = a; use_weighted = TRUE;  }
 	else    /*family == BLIS_TRSM*/ { x = a; use_weighted = FALSE; }
 
@@ -713,6 +736,7 @@ siz_t bli_thread_range_ndim
 {
 	bszid_t  bszid  = bli_cntl_bszid( cntl );
 	opid_t   family = bli_cntl_family( cntl );
+	blksz_t* bmult;
 
 	// This is part of trsm's current implementation, whereby right side
 	// cases are implemented in left-side micro-kernels, which requires
@@ -720,13 +744,23 @@ siz_t bli_thread_range_ndim
 	// packing A and B.
 	if ( family == BLIS_TRSM )
 	{
+		bmult = bli_cntx_get_trsm_bmult( bszid, cntx);
+
+		// if trsm blockszs are not set then use global blockszs
+		if (bli_blksz_get_def( bli_obj_dt( a ) , bmult ) == 0)
+		{
+			bmult  = bli_cntx_get_bmult( bszid, cntx );
+		}
 		if ( bli_obj_root_is_triangular( b ) ) bszid = BLIS_MR;
 		else                                   bszid = BLIS_NR;
 	}
+	else
+	{
+		bmult  = bli_cntx_get_bmult( bszid, cntx );
+	}
 
-	blksz_t* bmult  = bli_cntx_get_bmult( bszid, cntx );
 	obj_t*   x;
-	bool_t   use_weighted;
+	bool     use_weighted;
 
 	// Use the operation family to choose the one of the two matrices
 	// being partitioned that potentially has structure, and also to
@@ -738,6 +772,7 @@ siz_t bli_thread_range_ndim
 	// that will be dense and full (after packing).
 	if      ( family == BLIS_GEMM ) { x = b; use_weighted = FALSE; }
 	else if ( family == BLIS_HERK ) { x = c; use_weighted = TRUE;  }
+	else if ( family == BLIS_GEMMT ) { x = c; use_weighted = TRUE;  }
 	else if ( family == BLIS_TRMM ) { x = b; use_weighted = TRUE;  }
 	else    /*family == BLIS_TRSM*/ { x = b; use_weighted = FALSE; }
 
@@ -968,81 +1003,89 @@ siz_t bli_thread_range_weighted_b2t
 
 void bli_prime_factorization( dim_t n, bli_prime_factors_t* factors )
 {
-    factors->n = n;
-    factors->sqrt_n = ( dim_t )sqrt( ( double )n );
-    factors->f = 2;
+	factors->n = n;
+	factors->sqrt_n = ( dim_t )sqrt( ( double )n );
+	factors->f = 2;
 }
 
 dim_t bli_next_prime_factor( bli_prime_factors_t* factors )
 {
-    // Return the prime factorization of the original number n one-by-one.
-    // Return 1 after all factors have been exhausted.
+	// Return the prime factorization of the original number n one-by-one.
+	// Return 1 after all factors have been exhausted.
 
-    // Looping over possible factors in increasing order assures we will
-    // only return prime factors (a la the Sieve of Eratosthenes).
-    while ( factors->f <= factors->sqrt_n )
-    {
-        // Special cases for factors 2-7 handle all numbers not divisible by 11
-        // or another larger prime. The slower loop version is used after that.
-        // If you use a number of threads with large prime factors you get
-        // what you deserve.
-        if ( factors->f == 2 )
-        {
-            if ( factors->n % 2 == 0 )
-            {
-                factors->n /= 2;
-                return 2;
-            }
-            factors->f = 3;
-        }
-        else if ( factors->f == 3 )
-        {
-            if ( factors->n % 3 == 0 )
-            {
-                factors->n /= 3;
-                return 3;
-            }
-            factors->f = 5;
-        }
-        else if ( factors->f == 5 )
-        {
-            if ( factors->n % 5 == 0 )
-            {
-                factors->n /= 5;
-                return 5;
-            }
-            factors->f = 7;
-        }
-        else if ( factors->f == 7 )
-        {
-            if ( factors->n % 7 == 0 )
-            {
-                factors->n /= 7;
-                return 7;
-            }
-            factors->f = 11;
-        }
-        else
-        {
-            if ( factors->n % factors->f == 0 )
-            {
-                factors->n /= factors->f;
-                return factors->f;
-            }
-            factors->f++;
-        }
-    }
+	// Looping over possible factors in increasing order assures we will
+	// only return prime factors (a la the Sieve of Eratosthenes).
+	while ( factors->f <= factors->sqrt_n )
+	{
+		// Special cases for factors 2-7 handle all numbers not divisible by 11
+		// or another larger prime. The slower loop version is used after that.
+		// If you use a number of threads with large prime factors you get
+		// what you deserve.
+		if ( factors->f == 2 )
+		{
+			if ( factors->n % 2 == 0 )
+			{
+				factors->n /= 2;
+				return 2;
+			}
+			factors->f = 3;
+		}
+		else if ( factors->f == 3 )
+		{
+			if ( factors->n % 3 == 0 )
+			{
+				factors->n /= 3;
+				return 3;
+			}
+			factors->f = 5;
+		}
+		else if ( factors->f == 5 )
+		{
+			if ( factors->n % 5 == 0 )
+			{
+				factors->n /= 5;
+				return 5;
+			}
+			factors->f = 7;
+		}
+		else if ( factors->f == 7 )
+		{
+			if ( factors->n % 7 == 0 )
+			{
+				factors->n /= 7;
+				return 7;
+			}
+			factors->f = 11;
+		}
+		else
+		{
+			if ( factors->n % factors->f == 0 )
+			{
+				factors->n /= factors->f;
+				return factors->f;
+			}
+			factors->f++;
+		}
+	}
 
-    // To get here we must be out of prime factors, leaving only n (if it is
-    // prime) or an endless string of 1s.
-    dim_t tmp = factors->n;
-    factors->n = 1;
-    return tmp;
+	// To get here we must be out of prime factors, leaving only n (if it is
+	// prime) or an endless string of 1s.
+	dim_t tmp = factors->n;
+	factors->n = 1;
+	return tmp;
 }
 
-#if 0
-#include "limits.h"
-#endif
+bool bli_is_prime( dim_t n )
+{
+	bli_prime_factors_t factors;
+
+	bli_prime_factorization( n, &factors );
+
+	dim_t f = bli_next_prime_factor( &factors );
+
+	if ( f == n ) return TRUE;
+	else          return FALSE;
+}
 
 void bli_thread_partition_2x2
      (
@@ -1053,6 +1096,240 @@ void bli_thread_partition_2x2
        dim_t* restrict nt2
      )
 {
+	// Partition a number of threads into two factors nt1 and nt2 such that
+	// nt1/nt2 ~= work1/work2. There is a fast heuristic algorithm and a
+	// slower optimal algorithm (which minimizes |nt1*work2 - nt2*work1|).
+
+	// Return early small prime numbers of threads.
+	if ( n_thread < 4 )
+	{
+		*nt1 = ( work1 >= work2 ? n_thread : 1 );
+		*nt2 = ( work1 <  work2 ? n_thread : 1 );
+
+		return;
+	}
+
+#if 1
+	bli_thread_partition_2x2_fast( n_thread, work1, work2, nt1, nt2 );
+#else
+	bli_thread_partition_2x2_slow( n_thread, work1, work2, nt1, nt2 );
+#endif
+}
+
+//#define PRINT_FACTORS
+
+void bli_thread_partition_2x2_fast
+     (
+       dim_t           n_thread,
+       dim_t           work1,
+       dim_t           work2,
+       dim_t* restrict nt1,
+       dim_t* restrict nt2
+     )
+{
+	// Compute with these local variables until the end of the function, at
+	// which time we will save the values back to nt1 and nt2.
+	dim_t tn1 = 1;
+	dim_t tn2 = 1;
+
+	// Both algorithms need the prime factorization of n_thread.
+	bli_prime_factors_t factors;
+	bli_prime_factorization( n_thread, &factors );
+
+	// Fast algorithm: assign prime factors in increasing order to whichever
+	// partition has more work to do. The work is divided by the number of
+	// threads assigned at each iteration. This algorithm is sub-optimal in
+	// some cases. We attempt to mitigate the cases that involve at least one
+	// factor of 2. For example, in the partitioning of 12 with equal work
+	// this algorithm tentatively finds 6x2. This factorization involves a
+	// factor of 2 that can be reallocated, allowing us to convert it to the
+	// optimal solution of 4x3. But some cases cannot be corrected this way
+	// because they do not contain a factor of 2. For example, this algorithm
+	// factors 105 (with equal work) into 21x5 whereas 7x15 would be optimal.
+
+	#ifdef PRINT_FACTORS
+	printf( "w1 w2 = %d %d (initial)\n", (int)work1, (int)work2 );
+	#endif
+
+	dim_t f;
+	while ( ( f = bli_next_prime_factor( &factors ) ) > 1 )
+	{
+		#ifdef PRINT_FACTORS
+		printf( "w1 w2 = %4d %4d nt1 nt2 = %d %d ... f = %d\n",
+		        (int)work1, (int)work2, (int)tn1, (int)tn2, (int)f );
+		#endif
+
+		if ( work1 > work2 ) { work1 /= f; tn1 *= f; }
+		else                 { work2 /= f; tn2 *= f; }
+	}
+
+	#ifdef PRINT_FACTORS
+	printf( "w1 w2 = %4d %4d nt1 nt2 = %d %d\n",
+	        (int)work1, (int)work2, (int)tn1, (int)tn2 );
+	#endif
+
+	// Sometimes the last factor applied is prime. For example, on a square
+	// matrix, we tentatively arrive (from the logic above) at:
+	// - a 2x6 factorization when given 12 ways of parallelism
+	// - a 2x10 factorization when given 20 ways of parallelism
+	// - a 2x14 factorization when given 28 ways of parallelism
+	// These factorizations are suboptimal under the assumption that we want
+	// the parallelism to be as balanced as possible. Below, we make a final
+	// attempt at rebalancing nt1 and nt2 by checking to see if the gap between
+	// work1 and work2 is narrower if we reallocate a factor of 2.
+	if ( work1 > work2 )
+	{
+		// Example: nt = 12
+		//          w1 w2 (initial)   = 3600 3600; nt1 nt2 =  1 1
+		//          w1 w2 (tentative) = 1800  600; nt1 nt2 =  2 6
+		//          w1 w2 (ideal)     =  900 1200; nt1 nt2 =  4 3
+		if ( tn2 % 2 == 0 )
+		{
+			dim_t diff     =          work1   - work2;
+			dim_t diff_mod = bli_abs( work1/2 - work2*2 );
+
+			if ( diff_mod < diff ) { tn1 *= 2; tn2 /= 2; }
+		}
+	}
+	else if ( work1 < work2 )
+	{
+		// Example: nt = 40
+		//          w1 w2 (initial)   = 3600 3600; nt1 nt2 =  1 1
+		//          w1 w2 (tentative) =  360  900; nt1 nt2 = 10 4
+		//          w1 w2 (ideal)     =  720  450; nt1 nt2 =  5 8
+		if ( tn1 % 2 == 0 )
+		{
+			dim_t diff     =          work2   - work1;
+			dim_t diff_mod = bli_abs( work2/2 - work1*2 );
+
+			if ( diff_mod < diff ) { tn1 /= 2; tn2 *= 2; }
+		}
+	}
+
+	#ifdef PRINT_FACTORS
+	printf( "w1 w2 = %4d %4d nt1 nt2 = %d %d (final)\n",
+	        (int)work1, (int)work2, (int)tn1, (int)tn2 );
+	#endif
+
+	// Save the final result.
+	*nt1 = tn1;
+	*nt2 = tn2;
+}
+
+#include "limits.h"
+
+void bli_thread_partition_2x2_slow
+     (
+       dim_t           n_thread,
+       dim_t           work1,
+       dim_t           work2,
+       dim_t* restrict nt1,
+       dim_t* restrict nt2
+     )
+{
+	// Slow algorithm: exhaustively constructs all factor pairs of n_thread and
+	// chooses the best one.
+
+	// Compute with these local variables until the end of the function, at
+	// which time we will save the values back to nt1 and nt2.
+	dim_t tn1 = 1;
+	dim_t tn2 = 1;
+
+	// Both algorithms need the prime factorization of n_thread.
+	bli_prime_factors_t factors;
+	bli_prime_factorization( n_thread, &factors );
+
+	// Eight prime factors handles n_thread up to 223092870.
+	dim_t fact[8];
+	dim_t mult[8];
+
+	// There is always at least one prime factor, so use if for initialization.
+	dim_t nfact = 1;
+	fact[0] = bli_next_prime_factor( &factors );
+	mult[0] = 1;
+
+	// Collect the remaining prime factors, accounting for multiplicity of
+	// repeated factors.
+	dim_t f;
+	while ( ( f = bli_next_prime_factor( &factors ) ) > 1 )
+	{
+		if ( f == fact[nfact-1] )
+		{
+			mult[nfact-1]++;
+		}
+		else
+		{
+			nfact++;
+			fact[nfact-1] = f;
+			mult[nfact-1] = 1;
+		}
+	}
+
+	// Now loop over all factor pairs. A single factor pair is denoted by how
+	// many of each prime factor are included in the first factor (ntaken).
+	dim_t ntake[8] = {0};
+	dim_t min_diff = INT_MAX;
+
+	// Loop over how many prime factors to assign to the first factor in the
+	// pair, for each prime factor. The total number of iterations is
+	// \Prod_{i=0}^{nfact-1} mult[i].
+	bool done = FALSE;
+	while ( !done )
+	{
+		dim_t x = 1;
+		dim_t y = 1;
+
+		// Form the factors by integer exponentiation and accumulation.
+		for ( dim_t i = 0 ; i < nfact ; i++ )
+		{
+			x *= bli_ipow( fact[i], ntake[i] );
+			y *= bli_ipow( fact[i], mult[i]-ntake[i] );
+		}
+
+		// Check if this factor pair is optimal by checking
+		// |nt1*work2 - nt2*work1|.
+		dim_t diff = llabs( x*work2 - y*work1 );
+		if ( diff < min_diff )
+		{
+			min_diff = diff;
+			tn1 = x;
+			tn2 = y;
+		}
+
+		// Go to the next factor pair by doing an "odometer loop".
+		for ( dim_t i = 0 ; i < nfact ; i++ )
+		{
+			if ( ++ntake[i] > mult[i] )
+			{
+				ntake[i] = 0;
+				if ( i == nfact-1 ) done = TRUE;
+				else continue;
+			}
+			break;
+		}
+	}
+
+	// Save the final result.
+	*nt1 = tn1;
+	*nt2 = tn2;
+}
+
+#if 0
+void bli_thread_partition_2x2_orig
+     (
+       dim_t           n_thread,
+       dim_t           work1,
+       dim_t           work2,
+       dim_t* restrict nt1,
+       dim_t* restrict nt2
+     )
+{
+	// Copy nt1 and nt2 to local variables and then compute with those local
+	// variables until the end of the function, at which time we will save the
+	// values back to nt1 and nt2.
+	dim_t tn1; // = *nt1;
+	dim_t tn2; // = *nt2;
+
     // Partition a number of threads into two factors nt1 and nt2 such that
     // nt1/nt2 ~= work1/work2. There is a fast heuristic algorithm and a
     // slower optimal algorithm (which minimizes |nt1*work2 - nt2*work1|).
@@ -1060,42 +1337,94 @@ void bli_thread_partition_2x2
     // Return early small prime numbers of threads.
     if ( n_thread < 4 )
     {
-        *nt1 = ( work1 >= work2 ? n_thread : 1 );
-        *nt2 = ( work1 <  work2 ? n_thread : 1 );
+        tn1 = ( work1 >= work2 ? n_thread : 1 );
+        tn2 = ( work1 <  work2 ? n_thread : 1 );
+
 		return;
     }
 
-    *nt1 = 1;
-    *nt2 = 1;
+    tn1 = 1;
+    tn2 = 1;
 
     // Both algorithms need the prime factorization of n_thread.
     bli_prime_factors_t factors;
     bli_prime_factorization( n_thread, &factors );
 
-    #if 1
+#if 1
 
     // Fast algorithm: assign prime factors in increasing order to whichever
     // partition has more work to do. The work is divided by the number of
-    // threads assigned at each iteration. This algorithm is sub-optimal,
-    // for example in the partitioning of 12 with equal work (optimal solution
-    // is 4x3, this algorithm finds 6x2).
+    // threads assigned at each iteration. This algorithm is sub-optimal in
+	// some cases. We attempt to mitigate the cases that involve at least one
+	// factor of 2. For example, in the partitioning of 12 with equal work
+	// this algorithm tentatively finds 6x2. This factorization involves a
+	// factor of 2 that can be reallocated, allowing us to convert it to the
+	// optimal solution of 4x3. But some cases cannot be corrected this way
+	// because they do not contain a factor of 2. For example, this algorithm
+	// factors 105 (with equal work) into 21x5 whereas 7x15 would be optimal.
+
+	//printf( "w1 w2 = %d %d (initial)\n", (int)work1, (int)work2 );
 
     dim_t f;
     while ( ( f = bli_next_prime_factor( &factors ) ) > 1 )
     {
+		//printf( "w1 w2 = %4d %4d nt1 nt2 = %d %d ... f = %d\n", (int)work1, (int)work2, (int)tn1, (int)tn2, (int)f );
+
         if ( work1 > work2 )
         {
             work1 /= f;
-            *nt1 *= f;
+            tn1 *= f;
         }
         else
         {
             work2 /= f;
-            *nt2 *= f;
+            tn2 *= f;
         }
     }
 
-    #else
+	//printf( "w1 w2 = %4d %4d nt1 nt2 = %d %d\n", (int)work1, (int)work2, (int)tn1, (int)tn2 );
+
+	// Sometimes the last factor applied is prime. For example, on a square
+	// matrix, we tentatively arrive (from the logic above) at:
+	// - a 2x6 factorization when given 12 ways of parallelism
+	// - a 2x10 factorization when given 20 ways of parallelism
+	// - a 2x14 factorization when given 28 ways of parallelism
+	// These factorizations are suboptimal under the assumption that we want
+	// the parallelism to be as balanced as possible. Below, we make a final
+	// attempt at rebalancing nt1 and nt2 by checking to see if the gap between
+	// work1 and work2 is narrower if we reallocate a factor of 2.
+	if ( work1 > work2 )
+	{
+		// Example: nt = 12
+		//          w1 w2 (initial)   = 3600 3600; nt1 nt2 =  1 1
+		//          w1 w2 (tentative) = 1800  600; nt1 nt2 =  2 6
+		//          w1 w2 (ideal)     =  900 1200; nt1 nt2 =  4 3
+		if ( tn2 % 2 == 0 )
+		{
+			dim_t diff     =          work1   - work2;
+			dim_t diff_mod = bli_abs( work1/2 - work2*2 );
+
+			if ( diff_mod < diff ) { tn1 *= 2; tn2 /= 2; }
+		}
+	}
+	else if ( work1 < work2 )
+	{
+		// Example: nt = 40
+		//          w1 w2 (initial)   = 3600 3600; nt1 nt2 =  1 1
+		//          w1 w2 (tentative) =  360  900; nt1 nt2 = 10 4
+		//          w1 w2 (ideal)     =  720  450; nt1 nt2 =  5 8
+		if ( tn1 % 2 == 0 )
+		{
+			dim_t diff     =          work2   - work1;
+			dim_t diff_mod = bli_abs( work2/2 - work1*2 );
+
+			if ( diff_mod < diff ) { tn1 /= 2; tn2 *= 2; }
+		}
+	}
+
+	//printf( "w1 w2 = %4d %4d nt1 nt2 = %d %d (final)\n", (int)work1, (int)work2, (int)tn1, (int)tn2 );
+
+#else
 
     // Slow algorithm: exhaustively constructs all factor pairs of n_thread and
     // chooses the best one.
@@ -1134,7 +1463,7 @@ void bli_thread_partition_2x2
     // Loop over how many prime factors to assign to the first factor in the
     // pair, for each prime factor. The total number of iterations is
     // \Prod_{i=0}^{nfact-1} mult[i].
-    bool_t done = FALSE;
+    bool   done = FALSE;
     while ( !done )
     {
         dim_t x = 1;
@@ -1153,8 +1482,8 @@ void bli_thread_partition_2x2
         if ( diff < min_diff )
         {
             min_diff = diff;
-            *nt1 = x;
-            *nt2 = y;
+            tn1 = x;
+            tn2 = y;
         }
 
         // Go to the next factor pair by doing an "odometer loop".
@@ -1170,8 +1499,14 @@ void bli_thread_partition_2x2
         }
     }
 
-    #endif
+#endif
+
+
+	// Save the final result.
+	*nt1 = tn1;
+	*nt2 = tn2;
 }
+#endif
 
 // -----------------------------------------------------------------------------
 
@@ -1193,95 +1528,154 @@ dim_t bli_lcm( dim_t x, dim_t y)
 
 dim_t bli_ipow( dim_t base, dim_t power )
 {
-    dim_t p = 1;
+	dim_t p = 1;
 
-    for ( dim_t mask = 0x1 ; mask <= power ; mask <<= 1 )
-    {
-        if ( power & mask ) p *= base;
-        base *= base;
-    }
+	for ( dim_t mask = 0x1 ; mask <= power ; mask <<= 1 )
+	{
+		if ( power & mask ) p *= base;
+		base *= base;
+	}
 
-    return p;
+	return p;
 }
 
 // -----------------------------------------------------------------------------
 
 dim_t bli_thread_get_jc_nt( void )
 {
-	// We must ensure that global_rntm has been initialized.
-	bli_init_once();
-
-	return bli_rntm_jc_ways( &global_rntm );
+	rntm_t rntm_l;
+	bli_rntm_init_from_global( &rntm_l );
+	return bli_rntm_jc_ways( &rntm_l );
 }
 
 dim_t bli_thread_get_pc_nt( void )
 {
-	// We must ensure that global_rntm has been initialized.
-	bli_init_once();
-
-	return bli_rntm_pc_ways( &global_rntm );
+	rntm_t rntm_l;
+	bli_rntm_init_from_global( &rntm_l );
+	return bli_rntm_pc_ways( &rntm_l );
 }
 
 dim_t bli_thread_get_ic_nt( void )
 {
-	// We must ensure that global_rntm has been initialized.
-	bli_init_once();
-
-	return bli_rntm_ic_ways( &global_rntm );
+	rntm_t rntm_l;
+	bli_rntm_init_from_global( &rntm_l );
+	return bli_rntm_ic_ways( &rntm_l );
 }
 
 dim_t bli_thread_get_jr_nt( void )
 {
-	// We must ensure that global_rntm has been initialized.
-	bli_init_once();
-
-	return bli_rntm_jr_ways( &global_rntm );
+	rntm_t rntm_l;
+	bli_rntm_init_from_global( &rntm_l );
+	return bli_rntm_jr_ways( &rntm_l );
 }
 
 dim_t bli_thread_get_ir_nt( void )
 {
-	// We must ensure that global_rntm has been initialized.
-	bli_init_once();
-
-	return bli_rntm_ir_ways( &global_rntm );
+	rntm_t rntm_l;
+	bli_rntm_init_from_global( &rntm_l );
+	return bli_rntm_ir_ways( &rntm_l );
 }
 
 dim_t bli_thread_get_num_threads( void )
 {
-	// We must ensure that global_rntm has been initialized.
-	bli_init_once();
+	rntm_t rntm_l;
+	bli_rntm_init_from_global( &rntm_l );
+	return bli_rntm_num_threads( &rntm_l );
+}
 
-	return bli_rntm_num_threads( &global_rntm );
+bool bli_thread_get_is_parallel( void ) // VK
+{
+	// This function return true if parallelism is enabled
+	// either by OMP_NUM_THREADS or BLIS_NUM_THREADS or BLIS_?C_NT parameters
+	// When parallelism is enabled using BLIS_IC_NT or BLIS_JC_NT
+	// rntm->num_threads = -1, because num_threads is still not derived
+	// at the BLAS interface, as a result we end up running BLIS sequentially.
+	// In dgemm_ we called bli_thread_get_num_threads() which returns num_threads from
+	// tl_rntm.
+	// Therefore this function is added to check whether manual thread factorization
+	// is enabled.
+	//
+	// Note: This function CANNOT be used inside the parallelism within a
+	// BLIS function, as global_norm may not have correct OpenMP parallelism
+	// information, and initializing new TLS tl_rntm on the threads created
+	// by the parallel region will not get the correct OpenMP information
+	// for this region from the inside.
+	// In other words, this function reports whether parallelism will exist
+	// in a new parallel region.
+
+	rntm_t rntm_l;
+	bli_rntm_init_from_global( &rntm_l );
+
+	dim_t jc = bli_rntm_jc_ways( &rntm_l );
+	dim_t pc = bli_rntm_pc_ways( &rntm_l );
+	dim_t ic = bli_rntm_ic_ways( &rntm_l );
+	dim_t jr = bli_rntm_jr_ways( &rntm_l );
+	dim_t ir = bli_rntm_ir_ways( &rntm_l );
+
+	dim_t nt = bli_rntm_num_threads( &rntm_l );
+
+#ifdef PRINT_THREADING
+	printf( "bli_thread_get_is_parallel(): rntm_l\n" );
+	bli_rntm_print( &rntm_l );
+#endif
+
+	if ( nt > 1 || (jc * pc * ic * jr * ir) > 1 ) return 1;
+	return 0; // else
 }
 
 // ----------------------------------------------------------------------------
 
 void bli_thread_set_ways( dim_t jc, dim_t pc, dim_t ic, dim_t jr, dim_t ir )
 {
-	// We must ensure that global_rntm has been initialized.
+	// We must ensure that global_rntm and tl_rntm have been initialized
 	bli_init_once();
 
-	// Acquire the mutex protecting global_rntm.
-	bli_pthread_mutex_lock( &global_rntm_mutex );
+	// Update tl_rntm so any threads spawned after this call
+	// inherit the values set here.
+	bli_rntm_set_ways_only( jc, pc, ic, jr, ir, &tl_rntm );
 
-	bli_rntm_set_ways_only( jc, pc, ic, jr, ir, &global_rntm );
+	// BLIS_NUM_THREADS env variable or BLIS API to set the
+	// number of threads is used. Setting the blis_mt flag to TRUE
+	// so that OMP API or OMP env variables will not be of effect
+	// going forward.
+	bli_rntm_set_blis_mt_only( TRUE, &tl_rntm );
 
-	// Release the mutex protecting global_rntm.
-	bli_pthread_mutex_unlock( &global_rntm_mutex );
+	// Unset num_threads value here?
+	//bli_rntm_set_num_threads_only( -1, &tl_rntm );
+
+#ifdef PRINT_THREADING
+	printf( "bli_thread_set_ways(): tl_rntm\n" );
+	bli_rntm_print( &tl_rntm );
+#endif
 }
 
 void bli_thread_set_num_threads( dim_t n_threads )
 {
-	// We must ensure that global_rntm has been initialized.
+	// We must ensure that global_rntm and tl_rntm have been initialized
 	bli_init_once();
 
-	// Acquire the mutex protecting global_rntm.
-	bli_pthread_mutex_lock( &global_rntm_mutex );
+	if ( n_threads <= 0 )
+	{
+		n_threads = 1;
+	}
 
-	bli_rntm_set_num_threads_only( n_threads, &global_rntm );
+	// Update tl_rntm so any threads spawned after this call
+	// inherit the value set here.
+	bli_rntm_set_num_threads_only( n_threads, &tl_rntm );
 
-	// Release the mutex protecting global_rntm.
-	bli_pthread_mutex_unlock( &global_rntm_mutex );
+	// BLIS_NUM_THREADS env variable or BLIS API to set the
+	// number of threads is used. Setting the blis_mt flag to TRUE
+	// so that OMP API or OMP env variables will not be of effect
+	// going forward.
+	bli_rntm_set_blis_mt_only( TRUE, &tl_rntm );
+
+	// Unset ways values here?
+	//bli_rntm_set_ways_only( -1, -1, -1, -1, -1, &tl_rntm );
+
+#ifdef PRINT_THREADING
+	printf( "bli_thread_set_num_threads(): tl_rntm\n" );
+	bli_rntm_print( &tl_rntm );
+#endif
 }
 
 // ----------------------------------------------------------------------------
@@ -1291,22 +1685,95 @@ void bli_thread_init_rntm_from_env
        rntm_t* rntm
      )
 {
+	// Initialize global_rntm from environment.
 	// NOTE: We don't need to acquire the global_rntm_mutex here because this
 	// function is only called from bli_thread_init(), which is only called
 	// by bli_init_once().
 
-	bool_t auto_factor = FALSE;
-	dim_t  nt;
-	dim_t  jc, pc, ic, jr, ir;
+	bool  auto_factor = FALSE;
+	dim_t jc, pc, ic, jr, ir, nt;
 
 #ifdef BLIS_ENABLE_MULTITHREADING
+
+	// Scenarios:
+	// 1. If BLIS_NUM_THREADS is set with a valid value, same value
+	// will be used in the subsequent parallel regions unless
+	// bli_thread_set_num_threads() API is used by the Application
+	// to modify the desired number of threads during BLIS API execution.
+	//
+	// 2. Once BLIS_NUM_THREADS environment variable or bli_thread_set_num_threads(nt)
+	// API is used by the application, BLIS module would always give precedence to
+	// these values. BLIS API would not consider the values set using OpenMP API
+	// omp_set_num_threads(nt) API or OMP_NUM_THREADS environment variable.
+	//
+	// 3. If Application wants to allocate separate number of threads for BLIS API execution
+	// and application, Application can choose either BLIS_NUM_THREADS environement variable
+	// or bli_thread_set_num_threads(nt) API, to set the desired number of threads
+	// in BLIS API Execution. Application can use OpenMP APIs or environment variables for
+	// itself.
+	//
+	// 4. If BLIS_NUM_THREADS is not set, then if Application is multithreaded and issued
+	// omp_set_num_threads(nt) with desired number of threads,
+	// omp_get_max_threads() API will fetch the number of threads set earlier.
+	//
+	// 5. If BLIS_NUM_THREADS is not set, omp_set_num_threads(nt) is not called by the application,
+	// but only OMP_NUM_THREADS is set,
+	// omp_get_max_threads() API will fetch the value of OMP_NUM_THREADS.
+	//
+	// 6. If both environment variables are not set, or if they are set with invalid values, and
+	// omp_set_num_threads(nt) is not issued by application,
+	// omp_get_max_threads() API will return the number of the cores in the current context.
+	//
+	// Note: omp_get_max_threads() alone is not sufficient to determine the number of threads
+	//       that should be used for a new parallel region. We must also consider the number
+	//       of active levels of OpenMP parallelism and which level we are at, using APIs
+	//       omp_get_max_active_levels() and omp_get_active_level().
+	//
+	// BLIS will initialize rntm->num_threads with the same value.
+	// However if omp_set_nested is false - BLIS APIs called from parallel threads will run in sequential.
+	// But if nested parallelism is enabled - Then each application will launch MT BLIS.
+	//
+	// Order of precedence used for number of threads:
+	// 0. valid value set using bli_thread_set_num_threads(nt) by the application
+	// 1. valid value set for BLIS_NUM_THREADS environment variable
+	// 2. omp_set_num_threads(nt) issued by the application
+	// 3. valid value set for OMP_NUM_THREADS environment variable
+	// 4. Number of cores
+	//
+	// Note: If nt is not a valid value for omp_set_num_threads(nt) API, number of threads would be set to 1.
+	// omp_get_max_threads() API will return 1.
+	//
+	// OMP_NUM_THREADS environment variable is applicable only when OpenMP is enabled.
+
 
 	// Try to read BLIS_NUM_THREADS first.
 	nt = bli_env_get_var( "BLIS_NUM_THREADS", -1 );
 
-	// If BLIS_NUM_THREADS was not set, try to read OMP_NUM_THREADS.
-	if ( nt == -1 )
-		nt = bli_env_get_var( "OMP_NUM_THREADS", -1 );
+	// If BLIS_NUM_THREADS is set with a valid value, set the blis_mt flag in global runtime
+	// structure. Later during API execution, this flag will be checked for TRUE or FALSE.
+	// If the flag is FALSE, only then the value set by the application using OpenMP API,
+	// would be fetched and used subsequently.
+	if ( nt > 0 )
+	{
+		bli_rntm_set_blis_mt_only(TRUE, rntm);
+	}
+	else
+	{
+		bli_rntm_set_blis_mt_only(FALSE, rntm);
+
+#ifdef BLIS_ENABLE_OPENMP
+		dim_t active_level = omp_get_active_level();
+		dim_t max_levels = omp_get_max_active_levels();
+		if ( active_level < max_levels )
+		{
+		      nt = omp_get_max_threads();
+		} else {
+		      nt = 1;
+		}
+#else
+		nt = 1;
+#endif
+	}
 
 	// Read the environment variables for the number of threads (ways
 	// of parallelism) for each individual loop.
@@ -1330,6 +1797,9 @@ void bli_thread_init_rntm_from_env
 
 		// Unset the value for nt.
 		nt = -1;
+
+		// Ensure blis_mt is set to TRUE.
+		bli_rntm_set_blis_mt_only(TRUE, rntm);
 	}
 
 	// By this time, one of the following conditions holds:
@@ -1339,7 +1809,8 @@ void bli_thread_init_rntm_from_env
 
 	// If nt is set (ie: not -1), then we know we will perform an automatic
 	// thread factorization (later, in bli_rntm.c).
-	if ( nt != -1 ) auto_factor = TRUE;
+	// However, there is no need to run auto_factor if nt=1
+	if ( nt > 1 ) auto_factor = TRUE;
 
 #else
 
@@ -1348,16 +1819,389 @@ void bli_thread_init_rntm_from_env
 	nt = -1;
 	jc = pc = ic = jr = ir = 1;
 
-#endif
+#endif // BLIS_ENABLE_MULTITHREADING
 
 	// Save the results back in the runtime object.
 	bli_rntm_set_auto_factor_only( auto_factor, rntm );
 	bli_rntm_set_num_threads_only( nt, rntm );
 	bli_rntm_set_ways_only( jc, pc, ic, jr, ir, rntm );
 
-#if 0
-	printf( "bli_thread_init_rntm_from_env()\n" );
+
+	// Check environment for options to control xerbla
+
+	// Default: Don't stop on error
+	gint_t bli_stop_on_error_int  = bli_env_get_var( "BLIS_STOP_ON_ERROR", 0 );
+	bool bli_stop_on_error;
+	if ( bli_stop_on_error_int != 0 )
+	{
+		bli_stop_on_error = TRUE;
+	}
+	else
+	{
+		bli_stop_on_error = FALSE;
+	}
+	bli_rntm_set_stop_on_error_only(bli_stop_on_error, rntm);
+
+	// Default: print on error
+	gint_t bli_print_on_error_int = bli_env_get_var( "BLIS_PRINT_ON_ERROR", 1 );
+	bool bli_print_on_error;
+	if (bli_print_on_error_int  != 0 )
+        {
+		bli_print_on_error = TRUE;
+	}
+	else
+        {
+		bli_print_on_error = FALSE;
+	}
+	bli_rntm_set_print_on_error_only(bli_print_on_error, rntm);
+
+#ifdef PRINT_THREADING
+	printf( "bli_thread_init_rntm_from_env(): global_rntm\n" );
 	bli_rntm_print( rntm );
 #endif
 }
 
+void bli_thread_init_rntm_from_global_rntm
+     (
+       rntm_t* rntm
+     )
+{
+	// global_rntm is read-only at this point, so no mutex required.
+	*rntm = global_rntm;
+}
+
+void bli_thread_update_rntm_from_env
+     (
+       rntm_t* rntm
+     )
+{
+	// rntm is a fresh local (per-API call) copy of tl_rntm. Taking
+	// account of current OpenMP and BLIS specific threading info,
+	// check status of relevant OpenMP ICVs and update rntm for use
+	// in parallel work distribution.
+
+	// In serial BLIS library, no work is required here.
+
+#ifdef BLIS_ENABLE_MULTITHREADING
+
+	bool auto_factor = FALSE;
+	dim_t jc, pc, ic, jr, ir, nt;
+	bool blis_mt;
+
+	// Extract threading data from rntm.
+	nt = bli_rntm_num_threads( rntm );
+	jc = bli_rntm_jc_ways( rntm );
+	pc = bli_rntm_pc_ways( rntm );
+	ic = bli_rntm_ic_ways( rntm );
+	jr = bli_rntm_jr_ways( rntm );
+	ir = bli_rntm_ir_ways( rntm );
+	blis_mt = bli_rntm_blis_mt( rntm );
+
+	// Environment variables BLIS_NUM_THREADS and BLIS_*_NT have been read
+	// by bli_thread_init_rntm_from_env(), stored in global_rntm, copied to
+	// tl_rntm when it was initialized. Don't incur overhead re-reading them here.
+
+	// Scenarios:
+	// 1. If BLIS_NUM_THREADS is set with a valid value, same value
+	// will be used in the subsequent parallel regions unless
+	// bli_thread_set_num_threads() API is used by the Application
+	// to modify the desired number of threads during BLIS API execution.
+	//
+	// 2. Once BLIS_NUM_THREADS environment variable or bli_thread_set_num_threads(nt)
+	// API is used by the application, BLIS module would always give precedence to
+	// these values. BLIS API would not consider the values set using OpenMP API
+	// omp_set_num_threads(nt) API or OMP_NUM_THREADS environment variable.
+	//
+	// 3. If Application wants to allocate separate number of threads for BLIS API execution
+	// and application, Application can choose either BLIS_NUM_THREADS environement variable
+	// or bli_thread_set_num_threads(nt) API, to set the desired number of threads
+	// in BLIS API Execution. Application can use OpenMP APIs or environment variables for
+	// itself.
+	//
+	// 4. If BLIS_NUM_THREADS is not set, then if Application is multithreaded and issued
+	// omp_set_num_threads(nt) with desired number of threads,
+	// omp_get_max_threads() API will fetch the number of threads set earlier.
+	//
+	// 5. If BLIS_NUM_THREADS is not set, omp_set_num_threads(nt) is not called by the application,
+	// but only OMP_NUM_THREADS is set,
+	// omp_get_max_threads() API will fetch the value of OMP_NUM_THREADS.
+	//
+	// 6. If both environment variables are not set, or if they are set with invalid values, and
+	// omp_set_num_threads(nt) is not issued by application,
+	// omp_get_max_threads() API will return the number of the cores in the current context.
+	//
+	// Note: omp_get_max_threads() alone is not sufficient to determine the number of threads
+	//       that should be used for a new parallel region. We must also consider the number
+	//       of active levels of OpenMP parallelism and which level we are at, using APIs
+	//       omp_get_max_active_levels() and omp_get_active_level().
+	//
+	// BLIS will initialize rntm->num_threads with the same value.
+	// However if omp_set_nested is false - BLIS APIs called from parallel threads will run in sequential.
+	// But if nested parallelism is enabled - Then each application will launch MT BLIS.
+	//
+	// Order of precedence used for number of threads:
+	// 0. valid value set using bli_thread_set_num_threads(nt) by the application
+	// 1. valid value set for BLIS_NUM_THREADS environment variable
+	// 2. omp_set_num_threads(nt) issued by the application
+	// 3. valid value set for OMP_NUM_THREADS environment variable
+	// 4. Number of cores
+	//
+	// Note: If nt is not a valid value for omp_set_num_threads(nt) API, number of threads would be set to 1.
+	// omp_get_max_threads() API will return 1.
+	//
+	// OMP_NUM_THREADS environment variable is applicable only when OpenMP is enabled.
+
+	if ( blis_mt )
+	{
+		// BLIS threading env vars and/or APIs have been used.
+
+		// If any BLIS_*_NT environment variable was set, then we ignore the
+		// value of BLIS_NUM_THREADS or OMP_NUM_THREADS and use the
+		// BLIS_*_NT values instead (with unset variables being treated as if
+		// they contained 1).
+		if ( jc != -1 || pc != -1 || ic != -1 || jr != -1 || ir != -1 )
+		{
+			if ( jc == -1 ) jc = 1;
+			if ( pc == -1 ) pc = 1;
+			if ( ic == -1 ) ic = 1;
+			if ( jr == -1 ) jr = 1;
+			if ( ir == -1 ) ir = 1;
+
+			// Unset the value for nt.
+			nt = -1;
+		}
+
+#ifdef BLIS_ENABLE_OPENMP
+		// If call is not from an active OpenMP level, then it will be
+		// serial irrespective of BLIS threading settings.
+		// Reminder that we are setting values here for local rntm, thus
+		// BLIS threading settings remain unchanged in tl_rntm for
+		// consideration in future calls.
+		dim_t active_level = omp_get_active_level();
+		dim_t max_levels = omp_get_max_active_levels();
+		if ( active_level >= max_levels )
+		{
+			nt = -1;
+			jc = pc = ic = jr = ir = 1;
+		}
+#endif
+
+	}
+        else
+        {
+		// BLIS threading env vars and/or APIs have not been used.
+
+#ifdef BLIS_ENABLE_OPENMP
+		dim_t active_level = omp_get_active_level();
+		dim_t max_levels = omp_get_max_active_levels();
+		if ( active_level < max_levels )
+		{
+		      nt = omp_get_max_threads();
+		} else {
+		      nt = 1;
+		}
+#else
+		nt = 1;
+#endif
+	}
+
+	// By this time, one of the following conditions holds:
+	// - nt is -1 and the ways for each loop are -1.
+	// - nt is -1 and the ways for each loop are all set.
+	// - nt is set and the ways for each loop are -1.
+
+	// If nt is set (ie: not -1), then we know we will perform an automatic
+	// thread factorization (later, in bli_rntm.c).
+	// However, there is no need to run auto_factor if nt=1
+	if ( nt > 1 ) auto_factor = TRUE;
+
+	// Save the results back in the runtime object.
+	bli_rntm_set_auto_factor_only( auto_factor, rntm );
+	bli_rntm_set_num_threads_only( nt, rntm );
+	bli_rntm_set_ways_only( jc, pc, ic, jr, ir, rntm );
+	bli_rntm_set_blis_mt_only( blis_mt, rntm );
+
+#endif // BLIS_ENABLE_MULTITHREADING
+
+#ifdef PRINT_THREADING
+	printf( "bli_thread_update_rntm_from_env(): rntm\n" );
+	bli_rntm_print( rntm );
+#endif
+}
+
+/*
+	Functionality:
+	--------------
+	This function calculated the amount of work the calling thread is supposed
+	to perform on a vector.
+
+	Function signature
+	-------------------
+
+	This function takes the following input:
+
+	* n_elem - Number of element in the vector
+	* t_count - Number of threads in the group
+	* start - Vector start index (where the thread should start its processing)
+	* compute_len - Size of the chunk it needs to process
+	* thread_id - ID of the thread
+
+	Exception
+	----------
+
+	None
+*/
+void bli_thread_vector_partition
+     (
+       dim_t 	n_elem,
+       dim_t	t_count,
+       dim_t* 	start,
+       dim_t* 	compute_len,
+       dim_t 	thread_id
+     )
+{
+	dim_t thread_min_work = n_elem / t_count;
+	dim_t remainder_work = n_elem % t_count;
+
+	// In this case the length of the vector will be remainder_work
+	if (thread_min_work == 0)
+	{
+		/*
+			Threads with ID less than the length of the vector will
+			perform of the compute while the other threads will be idle
+		*/
+		if (thread_id < remainder_work)
+		{
+			  *start = thread_id;
+			  *compute_len = 1;
+		}
+		else
+		{
+			  *start = 0;
+			  *compute_len = 0;
+		}
+	}
+	else
+	{
+		if ( remainder_work == 0 )
+		{
+			*start = thread_min_work * thread_id;
+			*compute_len = thread_min_work;
+		}
+		else
+		{
+			/*
+				Scenario
+				--------
+
+				10 elements, 4 threads
+
+				Thread 0 - start = 0, compute_len = 2
+				Thread 1 - start = 2, compute_len = 2
+				Thread 2 - start = 4, compute_len = 3
+				Thread 3 - start = 7, compute_len = 3
+			*/
+			dim_t additional_work = t_count - remainder_work;
+
+			if (thread_id >= additional_work)
+			{
+				*start = (thread_min_work * thread_id) +
+						 (thread_id - (t_count - remainder_work));
+				*compute_len = thread_min_work + 1;
+			}
+			else
+			{
+				*start = thread_min_work * thread_id;
+				*compute_len = thread_min_work;
+			}
+		}
+	}
+}
+
+/*
+	Functionality :
+	--------------
+	This function calculated the amount of work the calling thread is supposed
+	to perform on a vector, in case of the norm api.
+
+	Function signature
+	-------------------
+
+	This function takes the following input:
+
+	* n_elem  	  - Number of element in the vector
+	* t_count 	  - Number of threads in the group
+	* start       - Vector start index (where the thread should start its processing)
+	* compute_len - Size of the chunk it needs to process
+	* block_size  - The factor by which the size should be a multiple for the AVX-2
+					code-section alone to be executed in the kernel.
+	* incx 		  - Increment of the vector
+	* thread_id   - ID of the thread
+
+	Exception
+	----------
+
+	None
+*/
+void bli_normfv_thread_partition
+	 (
+		dim_t 	n_elem,
+		dim_t 	t_count,
+		dim_t* 	start,
+		dim_t* 	compute_len,
+		dim_t  	block_size,
+		dim_t 	incx,
+		dim_t 	thread_id
+	 )
+{
+	dim_t job_per_thread = n_elem / t_count;
+	dim_t job_rem = n_elem % t_count;
+	dim_t job_rem_per_thread = job_per_thread % block_size;
+	dim_t thread_lim_excess = 0;
+
+	// Code-section to make job_per_thread as its nearset multiple of block_size
+	if( job_rem_per_thread )
+	{
+		job_rem += t_count * job_rem_per_thread;
+		job_per_thread -= job_rem_per_thread;
+	}
+
+	// Limit for the thread index, until which each thread gets block_size more elements
+	thread_lim_excess = job_rem / block_size;
+
+	// Add block_size to a thread's job size if its thread_id is within the thread limit
+	if ( thread_id < thread_lim_excess )
+	{
+		job_per_thread += block_size;
+		*start = thread_id * job_per_thread * incx;
+	}
+
+	// The last thread that has to deal with fringe cases, if they are present
+	else if ( thread_id == ( t_count - 1 ) )
+	{
+		*start = ( thread_lim_excess * block_size + thread_id * job_per_thread ) * incx;
+		job_per_thread += job_rem % block_size;
+	}
+
+	// Job allocation to the remaining threads
+	else
+	{
+		*start = ( thread_lim_excess * block_size + thread_id * job_per_thread ) * incx;
+	}
+
+	/*
+		As an example, let us consider the case where n_elem is 57 and t_count is 4.
+		Let us take block_size to be 4.
+
+		Thread 0 - 16
+		Thread 1 - 16
+		Thread 2 - 12
+		Thread 3 - 13
+
+		Here, only thread-3(last thread) has to deal with fringe cases. Every other thread has their
+		job size being the nearest upper/lower multiple of 4(block_size). Thus, the maximum
+		job difference between any two threads is 4(block_size).
+	*/
+
+	*compute_len = job_per_thread;
+}

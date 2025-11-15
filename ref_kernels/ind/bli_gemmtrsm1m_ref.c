@@ -59,7 +59,7 @@ void PASTEMAC3(ch,opname,arch,suf) \
 	PASTECH(ch,trsm_ukr_ft) \
 	                ctrsm_vir_ukr = bli_cntx_get_l3_vir_ukr_dt( dt, trsmkerid, cntx ); \
 \
-	const bool_t      col_pref    = bli_cntx_l3_nat_ukr_prefers_cols_dt( dt_r, BLIS_GEMM_UKR, cntx ); \
+	const bool        col_pref    = bli_cntx_l3_nat_ukr_prefers_cols_dt( dt_r, BLIS_GEMM_UKR, cntx ); \
 \
 	const dim_t       mr          = bli_cntx_get_blksz_def_dt( dt, BLIS_MR, cntx ); \
 	const dim_t       nr          = bli_cntx_get_blksz_def_dt( dt, BLIS_NR, cntx ); \
@@ -78,7 +78,7 @@ void PASTEMAC3(ch,opname,arch,suf) \
 \
 	const dim_t       packnr      = bli_cntx_get_blksz_max_dt( dt, BLIS_NR, cntx ); \
 \
-	const pack_t      schema_b    = bli_cntx_schema_b_panel( cntx ); \
+	const pack_t      schema_b    = bli_auxinfo_schema_b( data ); \
 \
 	const dim_t       k2          = 2 * k; \
 \

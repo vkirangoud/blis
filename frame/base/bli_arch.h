@@ -36,15 +36,24 @@
 #define BLIS_ARCH_H
 
 BLIS_EXPORT_BLIS arch_t bli_arch_query_id( void );
+BLIS_EXPORT_BLIS bool bli_aocl_enable_instruction_query( void );
 
-void   bli_arch_set_id_once( void );
-void   bli_arch_set_id( void );
+void bli_arch_set_id_once( void );
+void bli_arch_set_id( void );
+
+void bli_arch_check_id_once( void );
+void bli_arch_check_id( void );
 
 BLIS_EXPORT_BLIS char*  bli_arch_string( arch_t id );
 
-void   bli_arch_set_logging( bool_t dolog );
-bool_t bli_arch_get_logging( void );
-void   bli_arch_log( char*, ... );
+void bli_arch_set_logging( bool dolog );
+bool bli_arch_get_logging( void );
+void bli_arch_log( char*, ... );
+
+BLIS_EXPORT_BLIS model_t bli_model_query_id( void );
+BLIS_EXPORT_BLIS model_t bli_init_model_query_id( void );
+
+BLIS_EXPORT_BLIS char*  bli_model_string( model_t id );
 
 #endif
 

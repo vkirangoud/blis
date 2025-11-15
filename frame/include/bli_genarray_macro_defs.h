@@ -5,6 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
+   Copyright (C) 2022 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -103,6 +104,17 @@ arrayname[BLIS_NUM_FP_TYPES] = \
 	PASTEMAC(z,op)  \
 }
 
+
+#define GENARRAY_T(arrayname,opname,varname) \
+\
+arrayname[BLIS_NUM_FP_TYPES][2] = \
+{ \
+	{PASTEMACT(s,opname,l,varname),PASTEMACT(s,opname,u,varname)}, \
+	{PASTEMACT(c,opname,l,varname),PASTEMACT(c,opname,u,varname)}, \
+	{PASTEMACT(d,opname,l,varname),PASTEMACT(d,opname,u,varname)}, \
+	{PASTEMACT(z,opname,l,varname),PASTEMACT(z,opname,u,varname)}, \
+}
+
 #define GENARRAY_I(arrayname,op) \
 \
 arrayname[BLIS_NUM_FP_TYPES+1] = \
@@ -125,6 +137,20 @@ arrayname[BLIS_NUM_FP_TYPES][BLIS_NUM_FP_TYPES] = \
 	{ PASTEMAC2(z,s,op), NULL,              PASTEMAC2(z,d,op), NULL,             }  \
 }
 */
+
+
+
+// -- One-operand macro (with custom prefix) --
+
+#define GENARRAY_PREF(arrayname,prefix,op) \
+\
+arrayname[BLIS_NUM_FP_TYPES] = \
+{ \
+	PASTECH2(prefix,s,op), \
+	PASTECH2(prefix,c,op), \
+	PASTECH2(prefix,d,op), \
+	PASTECH2(prefix,z,op)  \
+}
 
 
 

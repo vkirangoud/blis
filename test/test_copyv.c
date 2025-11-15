@@ -4,7 +4,7 @@
    An object-based framework for developing high-performance BLAS-like
    libraries.
 
-   Copyright (C) 2019 - 2020, Advanced Micro Devices, Inc.
+   Copyright (C) 2019 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -67,8 +67,48 @@ bool_t dcompare_result(int n, double *x, int incx, double *y, int incy) {
 	}
 	return TRUE;
 }
-#endif
 
+bool_t ccompare_result(int n, scomplex *x, int incx, scomplex *y, int incy) {
+    for (int i = 0; i < n; i++)
+    {
+        if ( (*x) != (*y) )
+        {
+            printf("%4f != %4f at location %d.\n", *x, *y, 2*i);
+            return FALSE;
+        }
+
+        if( *(x + 1) != *(y + 1) )
+        {
+            printf("%4f != %4f at location %d.\n", *(x + 1), *(y + 1), (2*i + 1));
+            return FALSE;
+        }
+        x += 2*incx;
+        y += 2*incy;
+    }
+    return TRUE;
+}
+
+bool_t zcompare_result(int n, dcomplex *x, int incx, dcomplex *y, int incy) {
+    for (int i = 0; i < n; i++)
+    {
+        if ( (*x) != (*y) )
+        {
+            printf("%4f != %4f at location %d.\n", *x, *y, 2*i);
+            return FALSE;
+        }
+
+        if( *(x + 1) != *(y + 1) )
+        {
+            printf("%4f != %4f at location %d.\n", *(x + 1), *(y + 1), (2*i + 1));
+            return FALSE;
+        }
+        x += 2*incx;
+        y += 2*incy;
+    }
+    return TRUE;
+}
+
+#endif
 
 int main(int argc, char** argv)
 {
@@ -76,13 +116,13 @@ int main(int argc, char** argv)
 	dim_t n;
 	dim_t p;
 	dim_t p_begin, p_end, p_inc;
-	int   n_input, sizeof_dt;
+	int   n_input;
 	int   r, n_repeats;
 	num_t dt;
 
 	double dtime;
 	double dtime_save;
-	double Gbps;
+	double gflops;
 
 	//bli_init();
 
@@ -103,19 +143,14 @@ int main(int argc, char** argv)
 #endif
 
 #if 1
-	 // dt = BLIS_FLOAT;
-	dt = BLIS_DOUBLE;
+	dt = BLIS_FLOAT;
+	//dt = BLIS_DOUBLE;
 #else
 	//dt = BLIS_SCOMPLEX;
 	dt = BLIS_DCOMPLEX;
 #endif
 
-	if (dt == BLIS_DOUBLE)
-		sizeof_dt = sizeof(double);
-	else if (dt == BLIS_FLOAT)
-		sizeof_dt = sizeof(float);
-
-	printf("executable\t n\t GBs per sec\n");
+	printf("executable\t n\t Gflops per sec\n");
 	for (p = p_begin; p <= p_end; p += p_inc)
 	{
 
@@ -165,6 +200,32 @@ int main(int argc, char** argv)
 					yp, &incy
 				);
 			}
+			else if (bli_is_scomplex(dt))
+			{
+				f77_int nn = bli_obj_length(&x);
+				f77_int incx = bli_obj_vector_inc(&x);
+				scomplex* xp = bli_obj_buffer(&x);
+				f77_int incy = bli_obj_vector_inc(&y);
+				scomplex* yp = bli_obj_buffer(&y);
+
+				ccopy_( &nn,
+					xp, &incx,
+					yp, &incy
+					);
+			}
+			else if(bli_is_dcomplex(dt))
+			{
+				f77_int nn = bli_obj_length(&x);
+				f77_int incx = bli_obj_vector_inc(&x);
+				dcomplex* xp = bli_obj_buffer(&x);
+				f77_int incy = bli_obj_vector_inc(&y);
+				dcomplex* yp = bli_obj_buffer(&y);
+
+				zcopy_( &nn,
+					xp, &incx,
+					yp, &incy
+				      );
+			}
 #endif
 			dtime_save = bli_clock_min_diff(dtime_save, dtime);
 #ifdef BLIS_ACCURACY_TEST
@@ -198,15 +259,15 @@ int main(int argc, char** argv)
 
 		if (p >= 10000)
 			p_inc = 10000;
-		Gbps = (n * sizeof_dt) / (dtime_save * 1.0e9);
+		gflops = (n * 1) / (dtime_save * 1.0e9);
+		if(bli_is_complex(dt)) gflops *= 2;
 #ifdef BLIS
 		printf("data_copyv_blis\t");
 #else
 		printf("data_copyv_%s\t", BLAS);
 #endif
-		printf("%4lu\t %7.2f\n", 
-			(unsigned long)n, Gbps);
-
+		printf("%4lu\t %7.2f\n",
+			(unsigned long)n, gflops);
 		bli_obj_free(&x);
 		bli_obj_free(&y);
 	}

@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2018 - 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2024, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -45,9 +45,9 @@ typedef void (*FUNCPTR_T)
        uplo_t  uploc,
        trans_t transc,
        pack_t  schema,
-       bool_t  invdiag,
-       bool_t  revifup,
-       bool_t  reviflo,
+       bool    invdiag,
+       bool    revifup,
+       bool    reviflo,
        dim_t   m,
        dim_t   n,
        dim_t   m_max,
@@ -71,31 +71,10 @@ static func_t packm_struc_cxk_kers[BLIS_NUM_PACK_SCHEMA_TYPES] =
 // 0000 row/col panels
     { { bli_spackm_struc_cxk,      bli_cpackm_struc_cxk,
         bli_dpackm_struc_cxk,      bli_zpackm_struc_cxk,      } },
-// 0001 row/col panels: 4m interleaved
-    { { NULL,                      bli_cpackm_struc_cxk_4mi,
-        NULL,                      bli_zpackm_struc_cxk_4mi,  } },
-// 0010 row/col panels: 3m interleaved
-    { { NULL,                      bli_cpackm_struc_cxk_3mis,
-        NULL,                      bli_zpackm_struc_cxk_3mis, } },
-// 0011 row/col panels: 4m separated (NOT IMPLEMENTED)
-    { { NULL,                      NULL,
-        NULL,                      NULL,                      } },
-// 0100 row/col panels: 3m separated
-    { { NULL,                      bli_cpackm_struc_cxk_3mis,
-        NULL,                      bli_zpackm_struc_cxk_3mis, } },
-// 0101 row/col panels: real only
-    { { NULL,                      bli_cpackm_struc_cxk_rih,
-        NULL,                      bli_zpackm_struc_cxk_rih,  } },
-// 0110 row/col panels: imaginary only
-    { { NULL,                      bli_cpackm_struc_cxk_rih,
-        NULL,                      bli_zpackm_struc_cxk_rih,  } },
-// 0111 row/col panels: real+imaginary only
-    { { NULL,                      bli_cpackm_struc_cxk_rih,
-        NULL,                      bli_zpackm_struc_cxk_rih,  } },
-// 1000 row/col panels: 1m-expanded (1e)
+// 0001 row/col panels: 1m-expanded (1e)
     { { NULL,                      bli_cpackm_struc_cxk_1er,
         NULL,                      bli_zpackm_struc_cxk_1er,  } },
-// 1001 row/col panels: 1m-reordered (1r)
+// 0010 row/col panels: 1m-reordered (1r)
     { { NULL,                      bli_cpackm_struc_cxk_1er,
         NULL,                      bli_zpackm_struc_cxk_1er,  } },
 };
@@ -128,9 +107,9 @@ void bli_packm_blk_var1
 	uplo_t    uploc      = bli_obj_uplo( c );
 	trans_t   transc     = bli_obj_conjtrans_status( c );
 	pack_t    schema     = bli_obj_pack_schema( p );
-	bool_t    invdiag    = bli_obj_has_inverted_diag( p );
-	bool_t    revifup    = bli_obj_is_pack_rev_if_upper( p );
-	bool_t    reviflo    = bli_obj_is_pack_rev_if_lower( p );
+	bool      invdiag    = bli_obj_has_inverted_diag( p );
+	bool      revifup    = bli_obj_is_pack_rev_if_upper( p );
+	bool      reviflo    = bli_obj_is_pack_rev_if_lower( p );
 
 	dim_t     m_p        = bli_obj_length( p );
 	dim_t     n_p        = bli_obj_width( p );
@@ -159,7 +138,8 @@ void bli_packm_blk_var1
 
 	// Treatment of kappa (ie: packing during scaling) depends on
 	// whether we are executing an induced method.
-	if ( bli_is_nat_packed( schema ) )
+	// For dzgemm, scale alpha during packing.
+	if ( bli_is_nat_packed( schema ) && cntl && bli_cntl_family(cntl) != BLIS_GEMM_MD)
 	{
 		// This branch is for native execution, where we assume that
 		// the micro-kernel will always apply the alpha scalar of the
@@ -202,17 +182,23 @@ void bli_packm_blk_var1
 		// Acquire the buffer to the kappa chosen above.
 		buf_kappa = bli_obj_buffer_for_1x1( dt_p, kappa_p );
 	}
+	
+#ifdef BLIS_KERNELS_ZEN4
+	// For DGEMM in AVX512, scale by alpha during packing
+	if
+	( 
+		( bli_obj_dt( p ) == BLIS_DOUBLE ) &&
+		( ( bli_arch_query_id() == BLIS_ARCH_ZEN5 ) ||
+		  ( bli_arch_query_id() == BLIS_ARCH_ZEN4 ) )
+	)
+	{
+		bli_obj_scalar_detach( p, &kappa );
+		// Reset the attached scalar (to 1.0).
+		bli_obj_scalar_reset( p );
+		buf_kappa = kappa.buffer;
+	}
+#endif
 
-
-#if 0
-	if      ( bli_is_4mi_packed( schema ) ) packm_kers = packm_struc_cxk_4mi_kers;
-	else if ( bli_is_3mi_packed( schema ) ||
-	          bli_is_3ms_packed( schema ) ) packm_kers = packm_struc_cxk_3mis_kers;
-	else if ( bli_is_ro_packed( schema ) ||
-	          bli_is_io_packed( schema ) ||
-	         bli_is_rpi_packed( schema ) )  packm_kers = packm_struc_cxk_rih_kers;
-	else                                    packm_kers = packm_struc_cxk_kers;
-#else
 	// The original idea here was to read the packm_ukr from the context
 	// if it is non-NULL. The problem is, it requires that we be able to
 	// assume that the packm_ukr field is initialized to NULL, which it
@@ -238,7 +224,6 @@ void bli_packm_blk_var1
 		//packm_kers = bli_cntx_packm_ukrs( cntx );
 		packm_kers = cntx_packm_kers;
 	}
-#endif
 #endif
 
 	// Query the datatype-specific function pointer from the func_t object.
@@ -284,9 +269,9 @@ void PASTEMAC(ch,varname) \
        uplo_t  uploc, \
        trans_t transc, \
        pack_t  schema, \
-       bool_t  invdiag, \
-       bool_t  revifup, \
-       bool_t  reviflo, \
+       bool    invdiag, \
+       bool    revifup, \
+       bool    reviflo, \
        dim_t   m, \
        dim_t   n, \
        dim_t   m_max, \
@@ -333,11 +318,9 @@ void PASTEMAC(ch,varname) \
 	dim_t*          m_panel_max; \
 	dim_t*          n_panel_max; \
 	conj_t          conjc; \
-	bool_t          row_stored; \
-	bool_t          col_stored; \
+	bool            row_stored; \
+	bool            col_stored; \
 	inc_t           is_p_use; \
-	dim_t           ss_num; \
-	dim_t           ss_den; \
 \
 	ctype* restrict c_use; \
 	ctype* restrict p_use; \
@@ -408,17 +391,6 @@ void PASTEMAC(ch,varname) \
 		m_panel_max    = &panel_dim_max; \
 		n_panel_max    = &panel_len_max_i; \
 	} \
-\
-	/* Compute the storage stride scaling. Usually this is just 1. However,
-	   in the case of interleaved 3m, we need to scale by 3/2, and in the
-	   cases of real-only, imag-only, or summed-only, we need to scale by
-	   1/2. In both cases, we are compensating for the fact that pointer
-	   arithmetic occurs in terms of complex elements rather than real
-	   elements. */ \
-	if      ( bli_is_3mi_packed( schema ) ) { ss_num = 3; ss_den = 2; } \
-	else if ( bli_is_3ms_packed( schema ) ) { ss_num = 1; ss_den = 2; } \
-	else if ( bli_is_rih_packed( schema ) ) { ss_num = 1; ss_den = 2; } \
-	else                                    { ss_num = 1; ss_den = 1; } \
 \
 	/* Compute the total number of iterations we'll need. */ \
 	n_iter = iter_dim / panel_dim_max + ( iter_dim % panel_dim_max ? 1 : 0 ); \
@@ -549,7 +521,7 @@ void PASTEMAC(ch,varname) \
 			/* NOTE: This value is usually LESS than ps_p because triangular
 			   matrices usually have several micro-panels that are shorter
 			   than a "full" micro-panel. */ \
-			p_inc = ( is_p_use * ss_num ) / ss_den; \
+			p_inc = is_p_use; \
 		} \
 		else if ( bli_is_herm_or_symm( strucc ) ) \
 		{ \
@@ -704,29 +676,6 @@ bli_thread_barrier( thread ); \
 	} \
 bli_thread_barrier( thread ); \
 } \
-*/
-/*
-		if ( bli_is_4mi_packed( schema ) ) { \
-		printf( "packm_var2: is_p_use = %lu\n", is_p_use ); \
-		if ( col_stored ) { \
-		if ( 0 ) \
-		PASTEMAC(chr,fprintm)( stdout, "packm_var2: a_r", *m_panel_use, *n_panel_use, \
-		                       ( ctype_r* )c_use,         2*rs_c, 2*cs_c, "%4.1f", "" ); \
-		PASTEMAC(chr,fprintm)( stdout, "packm_var2: ap_r", *m_panel_max, *n_panel_max, \
-		                       ( ctype_r* )p_use,            rs_p, cs_p, "%4.1f", "" ); \
-		PASTEMAC(chr,fprintm)( stdout, "packm_var2: ap_i", *m_panel_max, *n_panel_max, \
-		                       ( ctype_r* )p_use + is_p_use, rs_p, cs_p, "%4.1f", "" ); \
-		} \
-		if ( row_stored ) { \
-		if ( 0 ) \
-		PASTEMAC(chr,fprintm)( stdout, "packm_var2: b_r", *m_panel_use, *n_panel_use, \
-		                       ( ctype_r* )c_use,         2*rs_c, 2*cs_c, "%4.1f", "" ); \
-		PASTEMAC(chr,fprintm)( stdout, "packm_var2: bp_r", *m_panel_max, *n_panel_max, \
-		                       ( ctype_r* )p_use,            rs_p, cs_p, "%4.1f", "" ); \
-		PASTEMAC(chr,fprintm)( stdout, "packm_var2: bp_i", *m_panel_max, *n_panel_max, \
-		                       ( ctype_r* )p_use + is_p_use, rs_p, cs_p, "%4.1f", "" ); \
-		} \
-		} \
 */
 /*
 		PASTEMAC(chr,fprintm)( stdout, "packm_var2: bp_rpi", *m_panel_max, *n_panel_max, \

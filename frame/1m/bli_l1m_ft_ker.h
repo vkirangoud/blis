@@ -55,7 +55,7 @@ typedef void (*PASTECH3(ch,opname,_ker,tsuf)) \
        uplo_t          uploc, \
        conj_t          conjc, \
        pack_t          schema, \
-       bool_t          invdiag, \
+       bool            invdiag, \
        dim_t           m_panel, \
        dim_t           n_panel, \
        dim_t           m_panel_max, \
@@ -72,11 +72,6 @@ INSERT_GENTDEF( packm )
 
 // NOTE: the following macros generate packm kernel function type definitions
 // that are "ctyped" and void-typed, for each of the floating-point datatypes.
-// However, we will only make use of the void-typed definitions because the
-// functions such as bli_?packm_cxk() (currently) use arrays of function
-// pointers to store and access the function pointers for various unrolling
-// (register blocksize) values, and therefore they must all be of the same
-// type (hence the use of void* for kappa, a, and p).
 
 // packm_ker
 
@@ -115,28 +110,6 @@ typedef void (*PASTECH3(ch,opname,_ker,tsuf)) \
 
 INSERT_GENTDEF( unpackm_cxk )
 
-// packm_3mis_ker
-// packm_4mi_ker
-
-#undef  GENTDEF
-#define GENTDEF( ctype, ch, opname, tsuf ) \
-\
-typedef void (*PASTECH3(ch,opname,_ker,tsuf)) \
-     ( \
-       conj_t           conja, \
-       dim_t            cdim, \
-       dim_t            n, \
-       dim_t            n_max, \
-       ctype*  restrict kappa, \
-       ctype*  restrict a, inc_t inca, inc_t lda, \
-       ctype*  restrict p, inc_t is_p, inc_t ldp, \
-       cntx_t* restrict cntx  \
-     );
-
-INSERT_GENTDEF( packm_cxk_3mis )
-INSERT_GENTDEF( packm_cxk_4mi )
-
-// packm_rih_ker
 // packm_1er_ker
 
 #undef  GENTDEF
@@ -155,11 +128,7 @@ typedef void (*PASTECH3(ch,opname,_ker,tsuf)) \
        cntx_t* restrict cntx  \
      );
 
-INSERT_GENTDEF( packm_cxk_rih )
 INSERT_GENTDEF( packm_cxk_1er )
-
-
-
 
 
 #endif

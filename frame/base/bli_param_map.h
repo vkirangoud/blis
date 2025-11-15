@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2019 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -48,7 +48,7 @@ BLIS_EXPORT_BLIS void bli_param_map_blis_to_netlib_machval( machval_t machval, c
 // NOTE: These static functions were converted from regular functions in order
 // to reduce function call overhead within the BLAS compatibility layer.
 
-static void bli_param_map_netlib_to_blis_side( char side, side_t* blis_side )
+BLIS_INLINE void bli_param_map_netlib_to_blis_side( char side, side_t* blis_side )
 {
 	if      ( side == 'l' || side == 'L' ) *blis_side = BLIS_LEFT;
 	else if ( side == 'r' || side == 'R' ) *blis_side = BLIS_RIGHT;
@@ -67,7 +67,7 @@ static void bli_param_map_netlib_to_blis_side( char side, side_t* blis_side )
 	}
 }
 
-static void bli_param_map_netlib_to_blis_uplo( char uplo, uplo_t* blis_uplo )
+BLIS_INLINE void bli_param_map_netlib_to_blis_uplo( char uplo, uplo_t* blis_uplo )
 {
 	if      ( uplo == 'l' || uplo == 'L' ) *blis_uplo = BLIS_LOWER;
 	else if ( uplo == 'u' || uplo == 'U' ) *blis_uplo = BLIS_UPPER;
@@ -79,11 +79,12 @@ static void bli_param_map_netlib_to_blis_uplo( char uplo, uplo_t* blis_uplo )
 	}
 }
 
-static void bli_param_map_netlib_to_blis_trans( char trans, trans_t* blis_trans )
+BLIS_INLINE void bli_param_map_netlib_to_blis_trans( char trans, trans_t* blis_trans )
 {
 	if      ( trans == 'n' || trans == 'N' ) *blis_trans = BLIS_NO_TRANSPOSE;
 	else if ( trans == 't' || trans == 'T' ) *blis_trans = BLIS_TRANSPOSE;
 	else if ( trans == 'c' || trans == 'C' ) *blis_trans = BLIS_CONJ_TRANSPOSE;
+	else if ( trans == 'p' || trans == 'P' ) *blis_trans = BLIS_PACKED;
 	else
 	{
 		// See comment for bli_param_map_netlib_to_blis_side() above.
@@ -92,7 +93,7 @@ static void bli_param_map_netlib_to_blis_trans( char trans, trans_t* blis_trans 
 	}
 }
 
-static void bli_param_map_netlib_to_blis_diag( char diag, diag_t* blis_diag )
+BLIS_INLINE void bli_param_map_netlib_to_blis_diag( char diag, diag_t* blis_diag )
 {
 	if      ( diag == 'n' || diag == 'N' ) *blis_diag = BLIS_NONUNIT_DIAG;
 	else if ( diag == 'u' || diag == 'U' ) *blis_diag = BLIS_UNIT_DIAG;

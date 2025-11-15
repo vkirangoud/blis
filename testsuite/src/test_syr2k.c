@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2018 - 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -285,8 +285,6 @@ void libblis_test_syr2k_impl
 	{
 		case BLIS_TEST_SEQ_FRONT_END:
 		bli_syr2k( alpha, a, b, beta, c );
-		//bli_syr2k4m( alpha, a, b, beta, c );
-		//bli_syr2k3m( alpha, a, b, beta, c );
 		break;
 
 		default:

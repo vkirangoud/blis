@@ -1,12 +1,12 @@
 /*===================================================================
  * File Name :  aocldtl.h
- * 
+ *
  * Description : This is main interface file for the end user
- *               It provides defination for all macros to be 
+ *               It provides defination for all macros to be
  *               used by user to add debug/trace information.
  *
- * Copyright (C) 2020, Advanced Micro Devices, Inc
- * 
+ * Copyright (C) 2020 - 2023, Advanced Micro Devices, Inc. All rights reserved.
+ *
  *==================================================================*/
 
 #ifndef _AOCLDTL_H_
@@ -15,6 +15,7 @@
 #include "aocldtlcf.h"
 #include "aocltpdef.h"
 #include "aoclflist.h"
+#include "aoclos.h"
 
 #define TRACE_TYPE_FENTRY           (1)
 #define TRACE_TYPE_FEXIT            (2)
@@ -47,7 +48,7 @@
 #endif
 
 #if AOCL_DTL_TRACE_ENABLE
-/* Exit macro to trace the flow of control The parameter LogLevel specifies 
+/* Exit macro to trace the flow of control The parameter LogLevel specifies
       log level String will preferably contains the function name in which this
       macro is invoked */
 #define AOCL_DTL_TRACE_EXIT(LogLevel) \
@@ -72,8 +73,8 @@
 #endif
 
 #if AOCL_DTL_DUMP_ENABLE
-/* Macro to Dump the DATA The parameters  Buffer contains the data to be 
-      dumped BufferSize specifies the no. of bytes to be dumped DataType 
+/* Macro to Dump the DATA The parameters  Buffer contains the data to be
+      dumped BufferSize specifies the no. of bytes to be dumped DataType
       specifies the data type of Buffer */
 #define AOCL_DTL_DUMP(LogLevel, Buffer, BufferSize, DataType, String, OutputType) \
     /* Call the Dump function to Dump the DATA */                                 \
@@ -101,6 +102,44 @@
 #else
 /* Dummy macro definition if the AOCL_DTL_LOG_ENABLE macro is not enabled */
 #define AOCL_DTL_LOG(LogLevel, Message)
+#endif
+
+#if AOCL_DTL_LOG_ENABLE
+
+void AOCL_DTL_start_perf_timer(void);
+uint64 AOCL_DTL_get_time_spent(void);
+
+/*
+ * Logging of inputs can be enabled by two methods:
+ *
+ * 1. Using environment variable AOCL_VERBOSE.
+ * 2. APIs
+ * 
+ * The API takes precedence over environment variable.
+ * 
+ * The global flag is maintain in the code to track the final
+ * state of the logging feature.
+ */
+extern Bool gbIsLoggingEnabled;
+
+/* API to enable logging at runtime */
+#define AOCL_DTL_Enable_Logs() \
+    /* Initialize DTL if not alredy done so */ \
+    AOCL_DTL_INITIALIZE(AOCL_DTL_TRACE_LEVEL); \
+    gbIsLoggingEnabled = TRUE;
+
+/* API to disable logging at runtime */
+#define AOCL_DTL_Disable_Logs() \
+    /* Initialize DTL if not alredy done so */ \
+    AOCL_DTL_INITIALIZE(AOCL_DTL_TRACE_LEVEL); \
+    gbIsLoggingEnabled = FALSE;
+
+/* Macro to log the Data */
+#define AOCL_DTL_START_PERF_TIMER() \
+    AOCL_DTL_start_perf_timer()
+#else
+/* Dummy macro definition if the AOCL_DTL_LOG_ENABLE macro is not enabled */
+#define AOCL_DTL_START_PERF_TIMER()
 #endif
 
 /* Macro to initialize the prerequisite for debuging */

@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2018 - 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -42,7 +42,7 @@ thrinfo_t* bli_thrinfo_create
        dim_t      ocomm_id,
        dim_t      n_way,
        dim_t      work_id, 
-       bool_t     free_comm,
+       bool       free_comm,
        bszid_t    bszid,
        thrinfo_t* sub_node
      )
@@ -73,7 +73,7 @@ void bli_thrinfo_init
        dim_t      ocomm_id,
        dim_t      n_way,
        dim_t      work_id, 
-       bool_t     free_comm,
+       bool       free_comm,
        bszid_t    bszid,
        thrinfo_t* sub_node
      )
@@ -332,8 +332,10 @@ thrinfo_t* bli_thrinfo_create_for_cntl
 	// pointers.
 	if ( bli_thread_am_ochief( thread_par ) )
 	{
+		err_t r_val;
+
 		if ( parent_n_way > BLIS_NUM_STATIC_COMMS )
-			new_comms = bli_malloc_intl( parent_n_way * sizeof( thrcomm_t* ) );
+			new_comms = bli_malloc_intl( parent_n_way * sizeof( thrcomm_t* ), &r_val );
 		else
 			new_comms = static_comms;
 	}

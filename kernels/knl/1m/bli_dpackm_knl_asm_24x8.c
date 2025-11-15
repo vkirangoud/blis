@@ -5,6 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
+   Copyright (C) 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -113,9 +114,9 @@ void bli_dpackm_knl_asm_8xk
        dim_t            cdim_,
        dim_t            n_,
        dim_t            n_max_,
-       void*   restrict kappa_,
-       void*   restrict a_, inc_t inca_, inc_t lda_,
-       void*   restrict p_,              inc_t ldp_,
+       double* restrict kappa_,
+       double* restrict a_, inc_t inca_, inc_t lda_,
+       double* restrict p_,              inc_t ldp_,
        cntx_t* restrict cntx
      )
 {
@@ -304,7 +305,8 @@ void bli_dpackm_knl_asm_8xk
           "zmm24", "zmm25", "zmm26", "zmm27", "zmm28", "zmm29",
           "zmm30", "zmm31",
           "rax", "rbx", "rcx", "rdx", "rdi", "rsi",
-          "r8", "r9", "r10", "r11", "r12", "r13", "r14", "memory"
+          "r8", "r9", "r10", "r11", "r12", "r13", "r14", "k0", "k1",
+          "ymm0", "ymm3", "memory"
     )
 
 	}
@@ -364,9 +366,9 @@ void bli_dpackm_knl_asm_24xk
        dim_t            cdim_,
        dim_t            n_,
        dim_t            n_max_,
-       void*   restrict kappa_,
-       void*   restrict a_, inc_t inca_, inc_t lda_,
-       void*   restrict p_,              inc_t ldp_,
+       double* restrict kappa_,
+       double* restrict a_, inc_t inca_, inc_t lda_,
+       double* restrict p_,              inc_t ldp_,
        cntx_t* restrict cntx
      )
 {
@@ -608,7 +610,8 @@ void bli_dpackm_knl_asm_24xk
           "zmm24", "zmm25", "zmm26", "zmm27", "zmm28", "zmm29",
           "zmm30", "zmm31",
           "rax", "rbx", "rcx", "rdi", "rsi",
-          "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15", "memory"
+          "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
+          "k0", "k1", "k2", "k3", "ymm0", "ymm1", "ymm2", "ymm3", "memory"
     )
 
 	}

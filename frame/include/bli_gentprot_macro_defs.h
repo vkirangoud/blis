@@ -5,6 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
+   Copyright (C) 2020 - 2024, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -55,6 +56,11 @@ GENTPROT( double,   d, blasname ) \
 GENTPROT( scomplex, c, blasname ) \
 GENTPROT( dcomplex, z, blasname )
 
+#define INSERT_GENTPROT_BLAS_CZ( blasname ) \
+\
+GENTPROT( scomplex, c, blasname ) \
+GENTPROT( dcomplex, z, blasname )
+
 
 // -- Basic one-operand macro with real domain only --
 
@@ -74,17 +80,33 @@ GENTPROTCO( scomplex, float,  c, s, blasname ) \
 GENTPROTCO( dcomplex, double, z, d, blasname )
 
 
+// -- Basic one-operand macro with conjugation (real funcs only, used only for dot, ger) --
+
+
+#define INSERT_GENTPROTDOTR_BLAS( blasname ) \
+\
+GENTPROTDOT( float,    s,  , blasname ) \
+GENTPROTDOT( double,   d,  , blasname )
+
+
+// -- Basic one-operand macro with conjugation (complex funcs only, used only for dot, ger) --
+
+
+#define INSERT_GENTPROTDOTC_BLAS( blasname ) \
+\
+GENTPROTDOT( scomplex, c, c, blasname ) \
+GENTPROTDOT( scomplex, c, u, blasname ) \
+GENTPROTDOT( dcomplex, z, c, blasname ) \
+GENTPROTDOT( dcomplex, z, u, blasname )
+
+
 // -- Basic one-operand macro with conjugation (used only for dot, ger) --
 
 
 #define INSERT_GENTPROTDOT_BLAS( blasname ) \
 \
-GENTPROTDOT( float,    s,  , blasname ) \
-GENTPROTDOT( double,   d,  , blasname ) \
-GENTPROTDOT( scomplex, c, c, blasname ) \
-GENTPROTDOT( scomplex, c, u, blasname ) \
-GENTPROTDOT( dcomplex, z, c, blasname ) \
-GENTPROTDOT( dcomplex, z, u, blasname )
+INSERT_GENTPROTDOTR_BLAS( blasname ) \
+INSERT_GENTPROTDOTC_BLAS( blasname )
 
 
 // -- Basic one-operand macro with real projection --
@@ -121,8 +143,17 @@ GENTPROTSCAL( dcomplex, dcomplex,  , z, blasname ) \
 GENTPROTSCAL( float,    scomplex, s, c, blasname ) \
 GENTPROTSCAL( double,   dcomplex, d, z, blasname )
 
-
-
+// -- GEMMT specific function --------------------------------------------------
+#define INSERT_GENTPROT_GEMMT(opname, funcname) \
+\
+GENTPROT( float,     s, opname, l, funcname ) \
+GENTPROT( double,    d, opname, l, funcname ) \
+GENTPROT( float,     s, opname, u, funcname ) \
+GENTPROT( double,    d, opname, u, funcname ) \
+GENTPROT( scomplex,  c, opname, l, funcname ) \
+GENTPROT( dcomplex,  z, opname, l, funcname ) \
+GENTPROT( scomplex,  c, opname, u, funcname ) \
+GENTPROT( dcomplex,  z, opname, u, funcname ) 
 
 // -- Macros for functions with one operand ------------------------------------
 
@@ -137,6 +168,11 @@ GENTPROT( float,    s, tfuncname ) \
 GENTPROT( double,   d, tfuncname ) \
 GENTPROT( scomplex, c, tfuncname ) \
 GENTPROT( dcomplex, z, tfuncname )
+
+#define INSERT_GENTPROT_BASIC0_SD( tfuncname ) \
+\
+GENTPROT( float,    s, tfuncname ) \
+GENTPROT( double,   d, tfuncname )
 
 // -- (one auxiliary argument) --
 

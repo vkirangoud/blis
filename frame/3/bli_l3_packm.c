@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2018 - 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -47,6 +47,8 @@ void bli_l3_packm
 {
 	packbuf_t pack_buf_type;
 	mem_t*    cntl_mem_p;
+	mem_t*    local_mem_p;
+	mem_t     local_mem_s;
 	siz_t     size_needed;
 
 	// FGVZ: Not sure why we need this barrier, but we do.
@@ -80,9 +82,6 @@ void bli_l3_packm
 	// all threads in the chief's thread group.
 	if ( bli_mem_is_unalloc( cntl_mem_p ) )
 	{
-		mem_t* local_mem_p;
-		mem_t  local_mem_s;
-
 		if ( bli_thread_am_ochief( thread ) )
 		{
 			#ifdef BLIS_ENABLE_MEM_TRACING
@@ -91,7 +90,7 @@ void bli_l3_packm
 
 			// The chief thread acquires a block from the memory broker
 			// and saves the associated mem_t entry to local_mem_s.
-			bli_membrk_acquire_m
+			bli_pba_acquire_m
 			(
 			  rntm,
 			  size_needed,
@@ -110,9 +109,6 @@ void bli_l3_packm
 	}
 	else // ( bli_mem_is_alloc( cntl_mem_p ) )
 	{
-		mem_t* local_mem_p;
-		mem_t  local_mem_s;
-
 		// If the mem_t entry in the control tree does NOT contain a NULL
 		// buffer, then a block has already been acquired from the memory
 		// broker and cached in the control tree.
@@ -130,12 +126,12 @@ void bli_l3_packm
 				// The chief thread releases the existing block associated with
 				// the mem_t entry in the control tree, and then re-acquires a
 				// new block, saving the associated mem_t entry to local_mem_s.
-				bli_membrk_release
+				bli_pba_release
 				(
 				  rntm,
 				  cntl_mem_p
 				);
-				bli_membrk_acquire_m
+				bli_pba_acquire_m
 				(
 				  rntm,
 				  size_needed,
@@ -168,7 +164,7 @@ void bli_l3_packm
 	// with the mem_t entry acquired from the memory broker (now cached in
 	// the control tree node).
 	void* buf = bli_mem_buffer( cntl_mem_p );
-    bli_obj_set_buffer( buf, x_pack );
+	bli_obj_set_buffer( buf, x_pack );
 
 
 	// Pack the contents of object x to object x_pack.

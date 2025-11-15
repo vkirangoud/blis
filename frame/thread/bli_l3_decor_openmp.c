@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2018, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -73,7 +73,8 @@ void bli_l3_thread_decorator
 	const dim_t n_threads = bli_rntm_num_threads( rntm );
 
 	#ifdef PRINT_THRINFO
-	thrinfo_t** threads = bli_malloc_intl( n_threads * sizeof( thrinfo_t* ) );
+	err_t r_val;
+	thrinfo_t** threads = bli_malloc_intl( n_threads * sizeof( thrinfo_t* ), &r_val );
 	#endif
 
 	// NOTE: The sba was initialized in bli_init().
@@ -92,7 +93,7 @@ void bli_l3_thread_decorator
 	// Set the packing block allocator field of the rntm. This will be
 	// inherited by all of the child threads when they make local copies of
 	// the rntm below.
-	bli_membrk_rntm_set_membrk( rntm );
+	bli_pba_rntm_set_pba( rntm );
 
 	// Allocate a global communicator for the root thrinfo_t structures.
 	thrcomm_t* restrict gl_comm = bli_thrcomm_create( rntm, n_threads );
@@ -109,7 +110,7 @@ void bli_l3_thread_decorator
 		// Query the thread's id from OpenMP.
 		const dim_t tid = omp_get_thread_num();
 
-		// Check for a somewhat obscure OpenMP thread-mistmatch issue.
+		// Check for a somewhat obscure OpenMP thread-mismatch issue.
 		bli_l3_thread_decorator_thread_check( n_threads, tid, gl_comm, rntm_p );
 
 		// Use the thread id to access the appropriate pool_t* within the
@@ -140,6 +141,17 @@ void bli_l3_thread_decorator
 		bli_l3_thrinfo_create_root( tid, gl_comm, rntm_p, cntl_use, &thread );
 
 #if 1
+		// Reset the progress state to 0 as we are starting new operations.
+		// This counter track running progress in current thread.
+		tls_aoclprogress_counter = 0;
+
+		// We send the update only after certain threshold is reached, 
+		// The threshold is defined as AOCL_PROGRESS_FREQUENCY.
+		// This variable stores the counter value when last update was sent. 
+		// It is compared with current counter value to see if it is time to
+		// send the next update.
+		tls_aoclprogress_last_update = 0;
+
 		func
 		(
 		  alpha,

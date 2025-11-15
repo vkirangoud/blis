@@ -5,6 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
+   Copyright (C) 2022 - 2024, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -34,14 +35,13 @@
 
 #include "blis.h"
 
-#ifdef BLIS_ENABLE_BLAS
-
 /* srotm.f -- translated by f2c (version 19991025).
    You must link the resulting object file with the libraries:
 	-lf2c -lm   (in that order)
 */
 
-/* Subroutine */ int PASTEF77(s,rotm)(const bla_integer *n, bla_real *sx, const bla_integer *incx, bla_real *sy, const bla_integer *incy, const bla_real *sparam)
+/* Subroutine */ 
+int PASTEF77S(s,rotm)(const bla_integer *n, bla_real *sx, const bla_integer *incx, bla_real *sy, const bla_integer *incy, const bla_real *sparam)
 {
     /* Initialized data */
 
@@ -207,7 +207,8 @@ L140:
 	-lf2c -lm   (in that order)
 */
 
-/* Subroutine */ int PASTEF77(d,rotm)(const bla_integer *n, bla_double *dx, const bla_integer *incx, bla_double *dy, const bla_integer *incy, const bla_double *dparam)
+/* Subroutine */ 
+int PASTEF77S(d,rotm)(const bla_integer *n, bla_double *dx, const bla_integer *incx, bla_double *dy, const bla_integer *incy, const bla_double *dparam)
 {
     /* Initialized data */
 
@@ -367,6 +368,18 @@ L120:
 L140:
     return 0;
 } /* drotm_ */
+
+#ifdef BLIS_ENABLE_BLAS
+
+int PASTEF77(s,rotm)(const bla_integer *n, bla_real *sx, const bla_integer *incx, bla_real *sy, const bla_integer *incy, const bla_real *sparam)
+{
+  return PASTEF77S(s,rotm)( n, sx, incx, sy, incy, sparam);
+}
+
+int PASTEF77(d,rotm)(const bla_integer *n, bla_double *dx, const bla_integer *incx, bla_double *dy, const bla_integer *incy, const bla_double *dparam)
+{
+  return PASTEF77S(d,rotm)( n, dx, incx, dy, incy, dparam);
+}
 
 #endif
 

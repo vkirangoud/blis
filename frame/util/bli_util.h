@@ -5,6 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
+   Copyright (C) 2020 - 2024, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -32,23 +33,30 @@
 
 */
 
+#ifndef BLI_UTIL_H_
+#define BLI_UTIL_H_
+
 #include "bli_util_check.h"
 
 // Prototype object APIs (expert and non-expert).
 #include "bli_oapi_ex.h"
 #include "bli_util_oapi.h"
+#include "bli_xapi_undef.h"
 
 #include "bli_oapi_ba.h"
 #include "bli_util_oapi.h"
+#include "bli_xapi_undef.h"
 
 // Prototype typed APIs (expert and non-expert).
 #include "bli_tapi_ex.h"
 #include "bli_util_tapi.h"
 #include "bli_util_ft.h"
+#include "bli_xapi_undef.h"
 
 #include "bli_tapi_ba.h"
 #include "bli_util_tapi.h"
 #include "bli_util_ft.h"
+#include "bli_xapi_undef.h"
 
 // Generate function pointer arrays for tapi functions (expert only).
 #include "bli_util_fpa.h"
@@ -56,3 +64,18 @@
 // Prototype level-1m implementations.
 #include "bli_util_unb_var1.h"
 
+//Routines to copy certain portion of a matrix to another
+#include "bli_util_update.h"
+
+// Header file define different formats of BLAS APIs- uppercase with
+// and without underscore, lowercase without underscore.
+#include "bli_util_api_wrap.h"
+
+// Header file define different formats of BLAS APIs- uppercase with
+// and without underscore, lowercase without underscore.
+#include "bli_util_api_wrap_blis_impl.h"
+
+// Public interface for the progress feature
+#include "bli_util_progress.h"
+
+#endif // BLI_UTIL_H_

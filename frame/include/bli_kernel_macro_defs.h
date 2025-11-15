@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2020, Advanced Micro Devices, Inc.
+   Copyright (C) 2020 - 2021, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -41,14 +41,21 @@
 
 // -- Conventional (large code path) values --
 
+// These BLIS_THREAD_RATIO_? macros distort the amount of work in the m and n
+// dimensions for the purposes of factorizing the total number of threads into
+// ways of parallelism in the ic and jc loops. See bli_rntm.c to see how these
+// macros are used.
 #ifndef BLIS_THREAD_RATIO_M
-#define BLIS_THREAD_RATIO_M     2
+#define BLIS_THREAD_RATIO_M     1
 #endif
 
 #ifndef BLIS_THREAD_RATIO_N
 #define BLIS_THREAD_RATIO_N     1
 #endif
 
+// These BLIS_THREAD_MAX_?R macros place a ceiling on the maximum amount of
+// parallelism allowed when performing automatic factorization. See bli_rntm.c
+// to see how these macros are used.
 #ifndef BLIS_THREAD_MAX_IR
 #define BLIS_THREAD_MAX_IR      1
 #endif
@@ -239,12 +246,6 @@
 #define BLIS_POOL_ADDR_OFFSET_SIZE_GEN   0
 #endif
 
-
-#ifdef AOCL_BLIS_ZEN
-#define TRSM_BLKSZ_FUNC bli_cntx_get_trsm_blksz
-#else
-#define TRSM_BLKSZ_FUNC bli_cntx_get_blksz
-#endif
 
 #endif
 

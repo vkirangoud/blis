@@ -5,7 +5,7 @@
    libraries.
 
    Copyright (C) 2014, The University of Texas at Austin
-   Copyright (C) 2018 - 2019, Advanced Micro Devices, Inc.
+   Copyright (C) 2018 - 2023, Advanced Micro Devices, Inc. All rights reserved.
 
    Redistribution and use in source and binary forms, with or without
    modification, are permitted provided that the following conditions are
@@ -65,6 +65,7 @@ cntl_t* bli_gemmbp_cntl_create
 	if      ( family == BLIS_GEMM ) macro_kernel_fp = bli_gemm_ker_var2;
 	else if ( family == BLIS_HERK ) macro_kernel_fp = bli_herk_x_ker_var2;
 	else if ( family == BLIS_TRMM ) macro_kernel_fp = bli_trmm_xx_ker_var2;
+	else if ( family == BLIS_GEMMT ) macro_kernel_fp = bli_gemmt_ker_var2;
 	else /* should never execute */ macro_kernel_fp = NULL;
 
 	packa_fp = bli_packm_blk_var1;
@@ -93,6 +94,7 @@ cntl_t* bli_gemmbp_cntl_create
 	cntl_t* gemm_cntl_packa = bli_packm_cntl_create_node
 	(
 	  rntm,
+	  BLIS_GEMM,
 	  bli_gemm_packa,  // pack the left-hand operand
 	  packa_fp,
 	  BLIS_MR,
@@ -119,6 +121,7 @@ cntl_t* bli_gemmbp_cntl_create
 	cntl_t* gemm_cntl_packb = bli_packm_cntl_create_node
 	(
 	  rntm,
+	  BLIS_GEMM,
 	  bli_gemm_packb,  // pack the right-hand operand
 	  packb_fp,
 	  BLIS_KR,
@@ -193,6 +196,7 @@ cntl_t* bli_gemmpb_cntl_create
 	cntl_t* gemm_cntl_packb = bli_packm_cntl_create_node
 	(
 	  bli_gemm_packb,  // pack the right-hand operand
+	  BLIS_GEMM,
 	  bli_packm_blk_var1,
 	  BLIS_KR,
 	  BLIS_MR,
@@ -218,6 +222,7 @@ cntl_t* bli_gemmpb_cntl_create
 	cntl_t* gemm_cntl_packa = bli_packm_cntl_create_node
 	(
 	  bli_gemm_packa,  // pack the left-hand operand
+	  BLIS_GEMM,
 	  bli_packm_blk_var1,
 	  BLIS_NR,
 	  BLIS_KR,

@@ -31,6 +31,7 @@
 
 config.mk
 bli_config.h
+bli_addon.h
 
 # -- monolithic headers --
 
@@ -43,7 +44,7 @@ include/*/*.h
 # -- misc. --
 
 # BLIS testsuite output file
-output.testsuite.*
+output.testsuite*
 
 # BLAS test output files
 out.*
@@ -52,3 +53,18 @@ out.*
 GPATH
 GRTAGS
 GTAGS
+
+# cmake builds
+build_*/*
+
+# Windows build
+bin/*
+*.dll
+*.lib
+*.pdb
+*.exe
+
+.vscode
+
+# Gtestsuite build files
+gtestsuite/build/*
