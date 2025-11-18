@@ -35,6 +35,7 @@
 
 #include "blis.h"
 
+#include <assert.h>
 #ifndef BLIS_ENABLE_MULTITHREADING
 
 void bli_l3_thread_decorator
@@ -147,9 +148,21 @@ void bli_l3_thread_decorator
 		bli_l3_thrinfo_free( rntm_p, thread );
 	}
 
-	// We shouldn't free the global communicator since it was already freed
-	// by the global communicator's chief thread in bli_l3_thrinfo_free()
-	// (called above).
+	// Free the global communicator after the parallel region completes.
+	// This ensures that no thread can be using gl_comm when it is freed,
+	// avoiding a potential data race where the chief thread would free
+	// gl_comm inside bli_thrinfo_free() while non-chief threads might
+	// still hold pointers to it.
+	assert( gl_comm != NULL );
+	bli_thrcomm_free( rntm, gl_comm );
+
+	/*
+	 * Avoid accidental reuse/double-free in debug builds by nulling our local
+	 * reference after freeing. The actual ownership contract is that the
+	 * decorator frees the communicator exactly once (see comment in
+	 * bli_l3_thrinfo_create_root()).
+	 */
+	gl_comm = NULL;
 
 	// Check the array_t back into the small block allocator. Similar to the
 	// check-out, this is done using a lock embedded within the sba to ensure

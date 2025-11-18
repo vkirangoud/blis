@@ -88,6 +88,20 @@ void bli_l3_thrinfo_create_root
 	dim_t   work_id    = gl_comm_id / ( n_threads / xx_way );
 
 	// Create the root thrinfo_t node.
+	//
+	// Ownership semantics (important):
+	// - The `free_comm` boolean indicates whether `bli_thrinfo_free()` should
+	//   free the communicator embedded in this thrinfo_t node.
+	// - When `free_comm == TRUE`, the chief thread inside a parallel region
+	//   will free the communicator as part of `bli_thrinfo_free()`.
+	// - When `free_comm == FALSE`, the communicator must be freed explicitly
+	//   by the surrounding decorator (the master thread) after the parallel
+	//   region completes. This avoids data races where non-chief threads might
+	//   still reference the communicator while the chief attempts to free it.
+	//
+	// NOTE: We set free_comm to FALSE here to follow the convention that the
+	// decorator (outside the parallel region) is responsible for freeing
+	// `gl_comm`.
 	*thread = bli_thrinfo_create
 	(
 	  rntm,
@@ -95,7 +109,7 @@ void bli_l3_thrinfo_create_root
 	  gl_comm_id,
 	  xx_way,
 	  work_id,
-	  TRUE,
+	  FALSE,
 	  bszid,
 	  NULL
 	);

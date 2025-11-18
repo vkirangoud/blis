@@ -123,8 +123,17 @@ err_t bli_l3_sup_thread_decorator
 		);
 
 #ifndef SKIP_THRINFO_TREE
-		// Free the current thread's thrinfo_t structure.
-		bli_l3_sup_thrinfo_free( rntm_p, thread );
+	// Free the current thread's thrinfo_t structure.
+	bli_l3_sup_thrinfo_free( rntm_p, thread );
+
+	// Free the global communicator after the parallel region completes.
+	// This ensures that no thread can be using gl_comm when it is freed,
+	// avoiding a potential data race where the chief thread would free
+	// gl_comm inside bli_thrinfo_free() while non-chief threads might
+	// still hold pointers to it.
+	assert( gl_comm != NULL );
+	bli_thrcomm_free( rntm, gl_comm );
+	gl_comm = NULL;
 #endif
 	}
 
